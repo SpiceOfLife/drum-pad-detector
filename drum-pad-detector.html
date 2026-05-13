@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision</title>
+<title>DrumVision - Air Drumming System</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
@@ -74,7 +74,7 @@
   .main {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 200px;
+    grid-template-columns: 1fr 220px;
     gap: 0;
     min-height: 0;
   }
@@ -91,12 +91,14 @@
     width: 100%; height: 100%;
     object-fit: cover;
     opacity: 0.85;
+    transform: scaleX(-1); /* 鏡像表示 */
   }
 
   canvas#overlay {
     position: absolute;
     inset: 0;
     width: 100%; height: 100%;
+    transform: scaleX(-1); /* 鏡像表示に合わせる */
   }
 
   canvas#offscreen { display: none; }
@@ -109,7 +111,7 @@
     pointer-events: none;
     transition: opacity 0.05s;
   }
-  .hit-flash.show { opacity: 0.18; }
+  .hit-flash.show { opacity: 0.25; }
 
   .no-cam {
     position: absolute;
@@ -122,23 +124,23 @@
     color: var(--dim);
     font-size: 0.75rem;
     letter-spacing: 2px;
+    z-index: 10;
   }
 
   .start-btn {
     background: var(--accent);
     color: #fff;
     border: none;
-    padding: 14px 32px;
+    padding: 18px 40px;
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.4rem;
+    font-size: 1.6rem;
     letter-spacing: 3px;
     cursor: pointer;
-    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
-    transition: background 0.2s, transform 0.1s;
+    clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+    transition: all 0.2s;
   }
-  .start-btn:hover { background: #ff6d30; transform: scale(1.04); }
+  .start-btn:hover { background: #ff6d30; transform: scale(1.05); }
 
-  /* Side panel */
   .side {
     background: var(--surface);
     border-left: 1px solid #222;
@@ -160,67 +162,40 @@
     margin-bottom: 10px;
   }
 
-  /* Hit counter */
   .hit-counter {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 4rem;
     color: var(--accent2);
     line-height: 1;
-    text-shadow: 0 0 30px rgba(255,204,0,0.3);
   }
 
-  .hit-sub { font-size: 0.6rem; color: var(--dim); letter-spacing: 2px; margin-top: 4px; }
-
-  /* BPM display */
   .bpm-val {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 2.2rem;
     color: var(--text);
-    line-height: 1;
   }
 
-  /* History */
-  .hit-log {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 120px;
-    overflow-y: auto;
-  }
-
-  .hit-entry {
-    font-size: 0.6rem;
-    color: var(--dim);
-    padding: 3px 0;
-    border-bottom: 1px solid #1a1a1a;
-    display: flex;
-    justify-content: space-between;
-  }
-  .hit-entry .zone { color: var(--accent2); }
-
-  /* Controls */
-  .ctrl-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  .pad-indicator {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #000;
+    border: 1px solid #222;
   }
 
   .ctrl-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    margin-bottom: 12px;
   }
 
   .ctrl-row label {
+    display: block;
     font-size: 0.55rem;
-    letter-spacing: 2px;
     color: var(--dim);
+    margin-bottom: 4px;
   }
 
   input[type=range] {
     width: 100%;
     accent-color: var(--accent);
-    cursor: pointer;
   }
 
   .val-display {
@@ -229,24 +204,18 @@
     text-align: right;
   }
 
-  /* Pad indicator */
-  .pad-indicator {
-    width: 100%;
-    aspect-ratio: 1;
-    position: relative;
-  }
-
-  .pad-svg {
-    width: 100%; height: 100%;
+  .hit-log {
+    font-size: 0.6rem;
+    color: var(--dim);
+    max-height: 100px;
+    overflow-y: auto;
   }
 
   footer {
     padding: 8px 20px;
     font-size: 0.55rem;
-    letter-spacing: 2px;
-    color: #2a2a2a;
+    color: #333;
     border-top: 1px solid #1a1a1a;
-    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
   }
@@ -257,9 +226,9 @@
 <header>
   <div class="logo">Drum<span>Vision</span></div>
   <div class="status-row">
-    <div class="dot" id="camDot"></div><span id="camLabel">NO CAM</span>
+    <div class="dot" id="camDot"></div><span id="camLabel">OFFLINE</span>
     &nbsp;&nbsp;
-    <div class="dot" id="hitDot"></div><span>HIT</span>
+    <div class="dot" id="hitDot"></div><span>DETECTION</span>
   </div>
 </header>
 
@@ -270,18 +239,15 @@
     <canvas id="offscreen"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
     <div class="no-cam" id="noCam">
-      <div style="font-size:0.7rem;letter-spacing:3px;">カメラを起動してください</div>
-      <button class="start-btn" id="startBtn">▶ START</button>
-      <div id="errMsg" style="display:none;font-size:0.6rem;color:#ff3d00;letter-spacing:1px;max-width:260px;text-align:center;line-height:1.6;margin-top:8px;"></div>
-      <div style="font-size:0.55rem;color:#333;letter-spacing:1px;margin-top:12px;">※ HTTPS環境またはローカルファイルで開いてください</div>
+      <button class="start-btn" id="startBtn">ACTIVATE SYSTEM</button>
+      <div id="errMsg" style="display:none; color:var(--accent); margin-top:10px;"></div>
     </div>
   </div>
 
   <div class="side">
     <div class="panel-section">
-      <div class="panel-label">HIT COUNT</div>
+      <div class="panel-label">STRIKE COUNT</div>
       <div class="hit-counter" id="hitCount">0</div>
-      <div class="hit-sub">TOTAL STRIKES</div>
     </div>
 
     <div class="panel-section">
@@ -290,453 +256,226 @@
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">PAD ZONE</div>
+      <div class="panel-label">PAD MAP</div>
       <div class="pad-indicator">
-        <svg class="pad-svg" viewBox="0 0 100 100" id="padSvg">
-          <!-- Octagon -->
-          <polygon id="padShape" points="30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30"
-            fill="none" stroke="#333" stroke-width="2"/>
-          <!-- Zone rings -->
-          <circle cx="50" cy="50" r="36" fill="none" stroke="#222" stroke-width="1" stroke-dasharray="3,3"/>
-          <circle cx="50" cy="50" r="20" fill="none" stroke="#222" stroke-width="1" stroke-dasharray="3,3"/>
-          <!-- Hit indicator dot -->
-          <circle id="hitDotSvg" cx="50" cy="50" r="5" fill="none"/>
+        <svg viewBox="0 0 100 100" style="width:100%; height:100%;">
+          <polygon points="30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30" fill="none" stroke="#333" stroke-width="1"/>
+          <circle cx="50" cy="50" r="35" fill="none" stroke="#222" stroke-width="1" stroke-dasharray="2,2"/>
+          <circle id="hitMarker" cx="50" cy="50" r="4" fill="none" transition="all 0.1s"/>
         </svg>
       </div>
     </div>
 
     <div class="panel-section">
       <div class="panel-label">SENSITIVITY</div>
-      <div class="ctrl-group">
-        <div class="ctrl-row">
-          <label>MOTION THRESHOLD</label>
-          <input type="range" id="motionThresh" min="5" max="80" value="25">
-          <div class="val-display" id="motionVal">25</div>
-        </div>
-        <div class="ctrl-row">
-          <label>COOLDOWN (ms)</label>
-          <input type="range" id="cooldownSlider" min="100" max="800" value="250" step="50">
-          <div class="val-display" id="cooldownVal">250ms</div>
-        </div>
+      <div class="ctrl-row">
+        <label>THRESHOLD</label>
+        <input type="range" id="motionThresh" min="5" max="80" value="25">
+        <div class="val-display" id="motionVal">25</div>
+      </div>
+      <div class="ctrl-row">
+        <label>COOLDOWN (ms)</label>
+        <input type="range" id="cooldownSlider" min="50" max="500" value="150" step="10">
+        <div class="val-display" id="cooldownVal">150ms</div>
       </div>
     </div>
 
     <div class="panel-section" style="flex:1">
-      <div class="panel-label">HIT LOG</div>
-      <div class="hit-log" id="hitLog"></div>
+      <div class="panel-label">LIVE LOG</div>
+      <div id="hitLog" class="hit-log"></div>
     </div>
   </div>
 </div>
 
 <footer>
-  <span>DRUMVISION v1.0</span>
+  <span>ENGINE: VISION_CORE v1.0</span>
   <span id="fpsDisplay">-- FPS</span>
 </footer>
 
 <script>
-// ──── State ────
+// --- State ---
 let videoEl, overlayCanvas, offCanvas, ctx, offCtx;
 let prevFrame = null;
 let hitCount = 0;
 let lastHitTime = 0;
 let hitTimes = [];
-let animId;
-let padRect = null; // {x, y, w, h} in video coords, normalized 0-1
-let isCalibrated = false;
 let audioCtx = null;
-let frameCount = 0, lastFpsTime = 0;
-
-// Settings
+let padRect = null;
 let motionThreshold = 25;
-let cooldownMs = 250;
+let cooldownMs = 150;
 
-// ──── Audio ────
-function getAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
+// --- Audio System ---
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
 }
 
-function playHit(zone) {
-  const ac = getAudioCtx();
-  // Different sounds per zone: center = low thud, mid = mid, rim = high
-  const freqs = { center: 80, mid: 120, rim: 200 };
-  const freq = freqs[zone] || 100;
+function playDrumSound(zone) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
 
-  // Kick-like sound
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
-  const osc2 = ac.createOscillator();
-  const gain2 = ac.createGain();
+  // 周波数設定
+  const freqs = { center: 65, mid: 110, rim: 280 };
+  const baseFreq = freqs[zone] || 100;
 
-  osc.connect(gain);
-  osc2.connect(gain2);
-  gain.connect(ac.destination);
-  gain2.connect(ac.destination);
-
-  const now = ac.currentTime;
-
-  // Main thud
-  osc.frequency.setValueAtTime(freq * 2, now);
-  osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + 0.1);
+  // 1. ボディサウンド（低域）
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(baseFreq * 1.8, now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.1);
   gain.gain.setValueAtTime(0.8, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-  osc.start(now); osc.stop(now + 0.25);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.3);
 
-  // Snap
-  osc2.type = 'square';
-  osc2.frequency.setValueAtTime(800 + (zone === 'rim' ? 400 : 0), now);
-  gain2.gain.setValueAtTime(0.15, now);
-  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-  osc2.start(now); osc2.stop(now + 0.04);
+  // 2. インパクトサウンド（高域）
+  const snap = audioCtx.createOscillator();
+  const snapGain = audioCtx.createGain();
+  snap.type = 'triangle';
+  snap.frequency.setValueAtTime(1200, now);
+  snapGain.gain.setValueAtTime(0.3, now);
+  snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+  snap.connect(snapGain);
+  snapGain.connect(audioCtx.destination);
+  snap.start(now);
+  snap.stop(now + 0.05);
 }
 
-// ──── Camera ────
-async function startCamera() {
-  const noCam = document.getElementById('noCam');
-  const errMsg = document.getElementById('errMsg');
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    errMsg.textContent = 'このブラウザはカメラAPIに対応していません。ChromeまたはSafariで開いてください。';
-    errMsg.style.display = 'block';
-    return;
-  }
-
-  errMsg.textContent = 'カメラ起動中...';
-  errMsg.style.display = 'block';
-
-  // Try back camera first, fall back to any camera
-  const constraints = [
-    { video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-    { video: { facingMode: 'environment' } },
-    { video: true }
-  ];
-
-  let stream = null;
-  let lastErr = null;
-  for (const c of constraints) {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(c);
-      break;
-    } catch(e) {
-      lastErr = e;
-    }
-  }
-
-  if (!stream) {
-    errMsg.textContent = 'カメラエラー: ' + (lastErr ? lastErr.message : '不明') + ' — HTTPSで開いているか、カメラ許可を確認してください。';
-    errMsg.style.display = 'block';
-    return;
-  }
-
-  videoEl.srcObject = stream;
-  videoEl.setAttribute('playsinline', '');
-  videoEl.setAttribute('muted', '');
-  videoEl.muted = true;
+// --- Vision System ---
+async function startSystem() {
+  initAudio(); // 音声の初期化
 
   try {
-    await videoEl.play();
-  } catch(e) {
-    // play() might need a user gesture on some browsers — already triggered by button click so OK
-  }
-
-  videoEl.addEventListener('loadedmetadata', () => {
-    noCam.style.display = 'none';
-    document.getElementById('camDot').classList.add('active');
-    document.getElementById('camLabel').textContent = 'LIVE';
-    resizeCanvases();
-    startDetection();
-  }, { once: true });
-
-  // Fallback: if metadata already loaded
-  if (videoEl.readyState >= 1) {
-    noCam.style.display = 'none';
-    document.getElementById('camDot').classList.add('active');
-    document.getElementById('camLabel').textContent = 'LIVE';
-    resizeCanvases();
-    startDetection();
-  }
-}
-
-function resizeCanvases() {
-  const wrap = document.getElementById('camWrap');
-  overlayCanvas.width = wrap.clientWidth;
-  overlayCanvas.height = wrap.clientHeight;
-  offCanvas.width = videoEl.videoWidth || 640;
-  offCanvas.height = videoEl.videoHeight || 480;
-}
-
-// ──── Detection Loop ────
-function startDetection() {
-  const loop = (ts) => {
-    animId = requestAnimationFrame(loop);
-    if (videoEl.readyState < 2) return;
-
-    // FPS
-    frameCount++;
-    if (ts - lastFpsTime > 1000) {
-      document.getElementById('fpsDisplay').textContent = frameCount + ' FPS';
-      frameCount = 0; lastFpsTime = ts;
-    }
-
-    offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
-    const frame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
-
-    // Auto-detect pad region if not calibrated
-    if (!isCalibrated) {
-      detectPadRegion(frame);
-    }
-
-    // Motion detection
-    if (prevFrame) {
-      const motionResult = detectMotion(frame, prevFrame);
-      if (motionResult && (ts - lastHitTime) > cooldownMs) {
-        lastHitTime = ts;
-        onHit(motionResult, ts);
-      }
-    }
-    prevFrame = frame;
-
-    // Draw overlay
-    drawOverlay();
-  };
-  requestAnimationFrame(loop);
-}
-
-// Detect pad via dark octagonal shape (dark gray on lighter background)
-function detectPadRegion(frame) {
-  const w = offCanvas.width, h = offCanvas.height;
-  const d = frame.data;
-
-  let minX = w, minY = h, maxX = 0, maxY = 0;
-  let darkPixels = 0;
-
-  for (let y = Math.floor(h * 0.05); y < Math.floor(h * 0.85); y += 4) {
-    for (let x = Math.floor(w * 0.05); x < Math.floor(w * 0.95); x += 4) {
-      const i = (y * w + x) * 4;
-      const r = d[i], g = d[i+1], b = d[i+2];
-      const brightness = (r + g + b) / 3;
-      const isGray = Math.abs(r - g) < 20 && Math.abs(g - b) < 20;
-      // Looking for dark gray (40-120 brightness, gray)
-      if (brightness > 40 && brightness < 130 && isGray) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-        darkPixels++;
-      }
-    }
-  }
-
-  const area = (maxX - minX) * (maxY - minY);
-  const coverage = area > 0 ? darkPixels / (area / 16) : 0;
-
-  if (darkPixels > 200 && coverage > 0.3 && (maxX - minX) > w * 0.1) {
-    // Smooth pad rect
-    const newRect = {
-      x: minX / w, y: minY / h,
-      w: (maxX - minX) / w, h: (maxY - minY) / h
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'user', width: 640, height: 480 } 
+    });
+    videoEl.srcObject = stream;
+    
+    videoEl.onloadedmetadata = () => {
+      document.getElementById('noCam').style.display = 'none';
+      document.getElementById('camDot').classList.add('active');
+      document.getElementById('camLabel').textContent = 'ACTIVE';
+      resize();
+      requestAnimationFrame(processFrame);
     };
-    if (!padRect) {
-      padRect = newRect;
-    } else {
-      const alpha = 0.05;
-      padRect.x = padRect.x * (1 - alpha) + newRect.x * alpha;
-      padRect.y = padRect.y * (1 - alpha) + newRect.y * alpha;
-      padRect.w = padRect.w * (1 - alpha) + newRect.w * alpha;
-      padRect.h = padRect.h * (1 - alpha) + newRect.h * alpha;
-    }
+  } catch (err) {
+    document.getElementById('errMsg').textContent = "CAMERA ERROR: " + err.message;
+    document.getElementById('errMsg').style.display = 'block';
   }
 }
 
-// Motion detection in pad region
-function detectMotion(curr, prev) {
-  const w = offCanvas.width, h = offCanvas.height;
-  const cd = curr.data, pd = prev.data;
+function resize() {
+  overlayCanvas.width = videoEl.clientWidth;
+  overlayCanvas.height = videoEl.clientHeight;
+  offCanvas.width = 160; // 処理軽量化のため低解像度で解析
+  offCanvas.height = 120;
+}
 
-  // Use pad region if found, else center third
-  const rx = padRect ? padRect.x : 0.2;
-  const ry = padRect ? padRect.y : 0.15;
-  const rw = padRect ? padRect.w : 0.6;
-  const rh = padRect ? padRect.h : 0.7;
+function processFrame(ts) {
+  if (videoEl.readyState >= 2) {
+    offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
+    const currentFrame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
-  const x0 = Math.floor(rx * w), y0 = Math.floor(ry * h);
-  const x1 = Math.floor((rx + rw) * w), y1 = Math.floor((ry + rh) * h);
-
-  let totalDiff = 0;
-  let motionX = 0, motionY = 0, motionCount = 0;
-  const step = 3;
-
-  for (let y = y0; y < y1; y += step) {
-    for (let x = x0; x < x1; x += step) {
-      const i = (y * w + x) * 4;
-      const diff = Math.abs(cd[i] - pd[i]) + Math.abs(cd[i+1] - pd[i+1]) + Math.abs(cd[i+2] - pd[i+2]);
-      if (diff > motionThreshold * 3) {
-        motionX += x; motionY += y; motionCount++;
+    if (prevFrame) {
+      const motion = detectMotion(currentFrame, prevFrame);
+      if (motion && (ts - lastHitTime) > cooldownMs) {
+        handleHit(motion, ts);
+        lastHitTime = ts;
       }
-      totalDiff += diff / 3;
+    }
+    prevFrame = currentFrame;
+    drawOverlay();
+  }
+  requestAnimationFrame(processFrame);
+}
+
+function detectMotion(curr, prev) {
+  const d1 = curr.data;
+  const d2 = prev.data;
+  let maxDiff = 0;
+  let mx = 0, my = 0, count = 0;
+
+  // 中央エリアを中心に差分をチェック
+  for (let i = 0; i < d1.length; i += 4) {
+    const diff = Math.abs(d1[i] - d2[i]);
+    if (diff > motionThreshold * 2) {
+      const x = (i / 4) % offCanvas.width;
+      const y = Math.floor((i / 4) / offCanvas.width);
+      mx += x; my += y; count++;
     }
   }
 
-  const pixels = ((x1 - x0) / step) * ((y1 - y0) / step);
-  const avgDiff = totalDiff / pixels;
-
-  if (avgDiff > motionThreshold && motionCount > 20) {
-    // Normalize hit position within pad
-    const hx = motionCount > 0 ? (motionX / motionCount - x0) / (x1 - x0) : 0.5;
-    const hy = motionCount > 0 ? (motionY / motionCount - y0) / (y1 - y0) : 0.5;
-    return { x: hx, y: hy, strength: avgDiff };
+  if (count > 30) {
+    return { x: (mx / count) / offCanvas.width, y: (my / count) / offCanvas.height };
   }
   return null;
 }
 
-function onHit(result, ts) {
+function handleHit(pos, ts) {
   hitCount++;
   document.getElementById('hitCount').textContent = hitCount;
 
-  // BPM calc
-  hitTimes.push(ts);
-  if (hitTimes.length > 8) hitTimes.shift();
-  if (hitTimes.length >= 2) {
-    const intervals = [];
-    for (let i = 1; i < hitTimes.length; i++) intervals.push(hitTimes[i] - hitTimes[i-1]);
-    const avgInterval = intervals.reduce((a,b) => a+b) / intervals.length;
-    const bpm = Math.round(60000 / avgInterval);
-    if (bpm > 20 && bpm < 400) document.getElementById('bpmVal').textContent = bpm;
-  }
-
-  // Zone detection
-  const dx = result.x - 0.5, dy = result.y - 0.5;
+  // ゾーン判定 (中心からの距離)
+  const dx = pos.x - 0.5;
+  const dy = pos.y - 0.5;
   const dist = Math.sqrt(dx*dx + dy*dy);
-  const zone = dist < 0.2 ? 'center' : dist < 0.38 ? 'mid' : 'rim';
+  const zone = dist < 0.15 ? 'center' : dist < 0.35 ? 'mid' : 'rim';
 
-  // SVG hit indicator
-  const dot = document.getElementById('hitDotSvg');
-  dot.setAttribute('cx', (result.x * 100).toFixed(1));
-  dot.setAttribute('cy', (result.y * 100).toFixed(1));
-  dot.setAttribute('fill', zone === 'center' ? '#ff3d00' : zone === 'mid' ? '#ffcc00' : '#00ff88');
-  dot.setAttribute('r', '6');
-  setTimeout(() => { dot.setAttribute('r', '3'); dot.setAttribute('fill', 'none'); }, 200);
-
-  // Flash
+  // 演出
+  playDrumSound(zone);
+  
   const flash = document.getElementById('hitFlash');
   flash.classList.add('show');
-  setTimeout(() => flash.classList.remove('show'), 80);
+  setTimeout(() => flash.classList.remove('show'), 50);
 
-  // Hit dot header
-  const hd = document.getElementById('hitDot');
-  hd.classList.add('hit');
-  setTimeout(() => hd.classList.remove('hit'), 150);
+  const marker = document.getElementById('hitMarker');
+  marker.setAttribute('cx', pos.x * 100);
+  marker.setAttribute('cy', pos.y * 100);
+  marker.setAttribute('fill', zone === 'center' ? '#ff3d00' : '#ffcc00');
+  setTimeout(() => marker.setAttribute('fill', 'none'), 200);
 
-  // Sound
-  playHit(zone);
-
-  // Log
-  const log = document.getElementById('hitLog');
-  const entry = document.createElement('div');
-  entry.className = 'hit-entry';
-  const t = new Date();
-  entry.innerHTML = `<span class="zone">${zone.toUpperCase()}</span><span>${t.toTimeString().slice(0,8)}</span>`;
-  log.prepend(entry);
-  if (log.children.length > 20) log.removeChild(log.lastChild);
-}
-
-// ──── Draw Overlay ────
-function drawOverlay() {
-  const cw = overlayCanvas.width, ch = overlayCanvas.height;
-  ctx.clearRect(0, 0, cw, ch);
-
-  if (!padRect) {
-    // Scanning animation
-    const t = Date.now() / 1000;
-    const scanY = ((t % 2) / 2) * ch;
-    const grad = ctx.createLinearGradient(0, scanY - 20, 0, scanY + 20);
-    grad.addColorStop(0, 'transparent');
-    grad.addColorStop(0.5, 'rgba(255,61,0,0.3)');
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, scanY - 20, cw, 40);
-
-    ctx.fillStyle = 'rgba(255,61,0,0.7)';
-    ctx.font = '0.6rem Space Mono, monospace';
-    ctx.fillText('SCANNING FOR PAD...', 12, ch - 12);
-    return;
+  // BPM計算
+  hitTimes.push(ts);
+  if (hitTimes.length > 10) hitTimes.shift();
+  if (hitTimes.length > 2) {
+    const avg = (hitTimes[hitTimes.length-1] - hitTimes[0]) / (hitTimes.length - 1);
+    document.getElementById('bpmVal').textContent = Math.round(60000 / avg);
   }
-
-  // Draw pad bounding box
-  const px = padRect.x * cw, py = padRect.y * ch;
-  const pw = padRect.w * cw, ph = padRect.h * ch;
-
-  // Corner brackets
-  const cs = 20;
-  ctx.strokeStyle = '#ff3d00';
-  ctx.lineWidth = 2;
-
-  const corners = [
-    [px, py], [px + pw, py], [px, py + ph], [px + pw, py + ph]
-  ];
-  const dirs = [[1,1],[-1,1],[1,-1],[-1,-1]];
-  corners.forEach(([cx2, cy2], i) => {
-    const [dx, dy] = dirs[i];
-    ctx.beginPath();
-    ctx.moveTo(cx2 + dx * cs, cy2);
-    ctx.lineTo(cx2, cy2);
-    ctx.lineTo(cx2, cy2 + dy * cs);
-    ctx.stroke();
-  });
-
-  // Center crosshair
-  const cx2 = px + pw / 2, cy2 = py + ph / 2;
-  ctx.strokeStyle = 'rgba(255,204,0,0.4)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(cx2 - 30, cy2); ctx.lineTo(cx2 + 30, cy2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx2, cy2 - 30); ctx.lineTo(cx2, cy2 + 30); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Zone circles
-  ctx.strokeStyle = 'rgba(255,204,0,0.2)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(cx2, cy2, Math.min(pw, ph) * 0.2, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx2, cy2, Math.min(pw, ph) * 0.38, 0, Math.PI * 2); ctx.stroke();
-
-  // Label
-  ctx.fillStyle = 'rgba(255,61,0,0.9)';
-  ctx.font = 'bold 10px Space Mono, monospace';
-  ctx.fillText('PAD DETECTED', px, py - 6);
 }
 
-// ──── Init ────
-window.addEventListener('DOMContentLoaded', () => {
+function drawOverlay() {
+  ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  ctx.strokeStyle = 'rgba(255, 61, 0, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(overlayCanvas.width*0.2, overlayCanvas.height*0.2, overlayCanvas.width*0.6, overlayCanvas.height*0.6);
+}
+
+// --- Init ---
+window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
   offCanvas = document.getElementById('offscreen');
   ctx = overlayCanvas.getContext('2d');
   offCtx = offCanvas.getContext('2d');
 
-  window.addEventListener('resize', resizeCanvases);
-
-  // Start button
-  document.getElementById('startBtn').addEventListener('click', startCamera);
-
-  // Controls
-  const motionSlider = document.getElementById('motionThresh');
-  motionSlider.addEventListener('input', () => {
-    motionThreshold = parseInt(motionSlider.value);
+  document.getElementById('startBtn').onclick = startSystem;
+  
+  document.getElementById('motionThresh').oninput = (e) => {
+    motionThreshold = e.target.value;
     document.getElementById('motionVal').textContent = motionThreshold;
-  });
-
-  const coolSlider = document.getElementById('cooldownSlider');
-  coolSlider.addEventListener('input', () => {
-    cooldownMs = parseInt(coolSlider.value);
+  };
+  document.getElementById('cooldownSlider').oninput = (e) => {
+    cooldownMs = parseInt(e.target.value);
     document.getElementById('cooldownVal').textContent = cooldownMs + 'ms';
-  });
-
-  // Tap to recalibrate
-  overlayCanvas.addEventListener('click', () => {
-    padRect = null;
-    isCalibrated = false;
-  });
-});
+  };
+};
 </script>
 </body>
 </html>

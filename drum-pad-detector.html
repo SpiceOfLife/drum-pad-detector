@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision - Camera Selectable</title>
+<title>DrumVision - Area Selector</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
@@ -42,40 +42,20 @@
     font-size: 2rem;
     letter-spacing: 4px;
     color: var(--accent);
-    text-shadow: 0 0 20px rgba(255,61,0,0.5);
   }
-
-  .logo span { color: var(--accent2); }
 
   .status-row {
     display: flex;
     gap: 12px;
     align-items: center;
     font-size: 0.65rem;
-    letter-spacing: 1px;
     color: var(--dim);
-  }
-
-  .dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--dim);
-    transition: background 0.2s, box-shadow 0.2s;
-  }
-  .dot.active {
-    background: #00ff88;
-    box-shadow: 0 0 8px #00ff88;
-  }
-  .dot.hit {
-    background: var(--accent);
-    box-shadow: 0 0 16px var(--accent);
   }
 
   .main {
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 220px;
-    gap: 0;
     min-height: 0;
   }
 
@@ -83,6 +63,8 @@
     position: relative;
     overflow: hidden;
     background: #000;
+    cursor: crosshair;
+    user-select: none;
   }
 
   video {
@@ -90,18 +72,15 @@
     inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
-    opacity: 0.85;
-    transform: scaleX(-1);
+    opacity: 0.8;
   }
 
   canvas#overlay {
     position: absolute;
     inset: 0;
     width: 100%; height: 100%;
-    transform: scaleX(-1);
+    z-index: 5;
   }
-
-  canvas#offscreen { display: none; }
 
   .hit-flash {
     position: absolute;
@@ -110,9 +89,9 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.05s;
-    z-index: 5;
+    z-index: 6;
   }
-  .hit-flash.show { opacity: 0.25; }
+  .hit-flash.show { opacity: 0.2; }
 
   .no-cam {
     position: absolute;
@@ -121,11 +100,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    color: var(--dim);
-    font-size: 0.75rem;
-    letter-spacing: 2px;
     z-index: 10;
+    background: rgba(0,0,0,0.8);
   }
 
   .start-btn {
@@ -135,14 +111,10 @@
     padding: 18px 40px;
     font-family: 'Bebas Neue', sans-serif;
     font-size: 1.6rem;
-    letter-spacing: 3px;
     cursor: pointer;
     clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
-    transition: all 0.2s;
   }
-  .start-btn:hover { background: #ff6d30; transform: scale(1.05); }
 
-  /* Side panel */
   .side {
     background: var(--surface);
     border-left: 1px solid #222;
@@ -158,10 +130,9 @@
 
   .panel-label {
     font-size: 0.55rem;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     color: var(--dim);
-    text-transform: uppercase;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .hit-counter {
@@ -171,38 +142,34 @@
     line-height: 1;
   }
 
-  .bpm-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.2rem;
-    color: var(--text);
-  }
-
-  /* Dropdown styling */
-  select {
+  select, button.sub-btn {
     width: 100%;
     background: #222;
     color: var(--text);
     border: 1px solid #444;
     padding: 8px;
-    font-family: 'Space Mono', monospace;
     font-size: 0.7rem;
     margin-top: 5px;
-    outline: none;
   }
 
-  .ctrl-row { margin-bottom: 12px; }
-  .ctrl-row label { display: block; font-size: 0.55rem; color: var(--dim); margin-bottom: 4px; }
+  .guide-msg {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: var(--accent2);
+    z-index: 7;
+    pointer-events: none;
+  }
+
   input[type=range] { width: 100%; accent-color: var(--accent); }
   .val-display { font-size: 0.65rem; color: var(--accent2); text-align: right; }
 
-  footer {
-    padding: 8px 20px;
-    font-size: 0.55rem;
-    color: #333;
-    border-top: 1px solid #1a1a1a;
-    display: flex;
-    justify-content: space-between;
-  }
+  footer { padding: 8px 20px; font-size: 0.55rem; color: #333; border-top: 1px solid #1a1a1a; }
 </style>
 </head>
 <body>
@@ -210,9 +177,7 @@
 <header>
   <div class="logo">Drum<span>Vision</span></div>
   <div class="status-row">
-    <div class="dot" id="camDot"></div><span id="camLabel">OFFLINE</span>
-    &nbsp;&nbsp;
-    <div class="dot" id="hitDot"></div><span>DETECTION</span>
+    <div id="camLabel">OFFLINE</div>
   </div>
 </header>
 
@@ -220,252 +185,222 @@
   <div class="camera-wrap" id="camWrap">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
-    <canvas id="offscreen"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
+    <div class="guide-msg" id="guideMsg">ドラッグして判定エリアを選択してください</div>
     <div class="no-cam" id="noCam">
-      <button class="start-btn" id="startBtn">INITIALIZE SYSTEM</button>
-      <div id="errMsg" style="display:none; color:var(--accent); margin-top:10px; max-width: 80%; text-align: center;"></div>
+      <button class="start-btn" id="startBtn">START SYSTEM</button>
     </div>
   </div>
 
   <div class="side">
     <div class="panel-section">
-      <div class="panel-label">CAMERA SOURCE</div>
-      <select id="cameraSelect">
-        <option value="">-- SELECT CAMERA --</option>
-      </select>
+      <div class="panel-label">CAMERA</div>
+      <select id="cameraSelect"></select>
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">STRIKE COUNT</div>
+      <div class="panel-label">STRIKES</div>
       <div class="hit-counter" id="hitCount">0</div>
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">TEMPO (BPM)</div>
-      <div class="bpm-val" id="bpmVal">---</div>
+      <div class="panel-label">THRESHOLD</div>
+      <input type="range" id="motionThresh" min="5" max="80" value="25">
+      <div class="val-display" id="motionVal">25</div>
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">SENSITIVITY</div>
-      <div class="ctrl-row">
-        <label>THRESHOLD</label>
-        <input type="range" id="motionThresh" min="5" max="80" value="25">
-        <div class="val-display" id="motionVal">25</div>
-      </div>
-      <div class="ctrl-row">
-        <label>COOLDOWN (ms)</label>
-        <input type="range" id="cooldownSlider" min="50" max="500" value="150" step="10">
-        <div class="val-display" id="cooldownVal">150ms</div>
-      </div>
+      <button class="sub-btn" id="resetAreaBtn">AREA RESET</button>
     </div>
   </div>
 </div>
 
-<footer>
-  <span>ENGINE: VISION_CORE v1.1</span>
-  <span id="fpsDisplay">-- FPS</span>
-</footer>
+<footer>AREA SELECTOR ENABLED</footer>
 
 <script>
-// --- State ---
-let videoEl, overlayCanvas, offCanvas, ctx, offCtx;
+let videoEl, overlayCanvas, ctx;
+let offCanvas, offCtx;
 let currentStream = null;
 let prevFrame = null;
 let hitCount = 0;
 let lastHitTime = 0;
-let hitTimes = [];
 let audioCtx = null;
 let motionThreshold = 25;
-let cooldownMs = 150;
-let isProcessing = false;
 
-// --- Audio ---
+// エリア選択用
+let selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 }; // 正規化座標 (0~1)
+let isDragging = false;
+let startPos = { x: 0, y: 0 };
+
 function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
-function playDrumSound(zone) {
+function playSound() {
   if (!audioCtx) return;
   const now = audioCtx.currentTime;
-  const baseFreq = 65; // Kick-like sound
-
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(baseFreq * 2, now);
-  osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.1);
-  gain.gain.setValueAtTime(0.8, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.frequency.setValueAtTime(70, now);
+  osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.2);
+  gain.gain.setValueAtTime(0.5, now);
+  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
   osc.connect(gain);
   gain.connect(audioCtx.destination);
-  osc.start(now);
-  osc.stop(now + 0.3);
-
-  const snap = audioCtx.createOscillator();
-  const snapGain = audioCtx.createGain();
-  snap.type = 'triangle';
-  snap.frequency.setValueAtTime(1200, now);
-  snapGain.gain.setValueAtTime(0.2, now);
-  snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-  snap.connect(snapGain);
-  snapGain.connect(audioCtx.destination);
-  snap.start(now);
-  snap.stop(now + 0.05);
+  osc.start();
+  osc.stop(now + 0.2);
 }
 
-// --- Camera Management ---
-async function getCameraList() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    const select = document.getElementById('cameraSelect');
-    
-    // 既存のオプションをクリア（初期化用）
-    select.innerHTML = '';
-    
-    videoDevices.forEach((device, index) => {
-      const option = document.createElement('option');
-      option.value = device.deviceId;
-      option.text = device.label || `Camera ${index + 1}`;
-      select.appendChild(option);
-    });
-  } catch (err) {
-    console.error("Error listing cameras:", err);
-  }
+async function getCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const select = document.getElementById('cameraSelect');
+  select.innerHTML = '';
+  devices.filter(d => d.kind === 'videoinput').forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.deviceId;
+    opt.text = d.label || 'Camera';
+    select.appendChild(opt);
+  });
 }
 
-async function startCamera(deviceId = null) {
+async function startCamera(id = null) {
   initAudio();
+  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
   
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
-  }
-
-  const constraints = {
-    video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' },
-    width: 640,
-    height: 480
+  const constraints = { 
+    video: id ? { deviceId: id } : { facingMode: 'user' },
+    width: 640, height: 480 
   };
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    currentStream = stream;
-    videoEl.srcObject = stream;
-    
-    // 初めて起動したときにカメラのラベルを再取得（許可が出た後なら名前が取れるため）
-    if (!deviceId) await getCameraList();
-
-    videoEl.onloadedmetadata = () => {
-      document.getElementById('noCam').style.display = 'none';
-      document.getElementById('camDot').classList.add('active');
-      document.getElementById('camLabel').textContent = 'ACTIVE';
-      resize();
-      if (!isProcessing) {
-        isProcessing = true;
-        requestAnimationFrame(processFrame);
-      }
-    };
-  } catch (err) {
-    document.getElementById('errMsg').textContent = "ERROR: " + err.message;
-    document.getElementById('errMsg').style.display = 'block';
-  }
+  
+  currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+  videoEl.srcObject = currentStream;
+  document.getElementById('noCam').style.display = 'none';
+  await getCameras();
+  requestAnimationFrame(loop);
 }
 
-function resize() {
-  overlayCanvas.width = videoEl.clientWidth;
-  overlayCanvas.height = videoEl.clientHeight;
-  offCanvas.width = 160;
-  offCanvas.height = 120;
-}
-
-// --- Frame Processing ---
-function processFrame(ts) {
+function loop(ts) {
   if (videoEl.readyState >= 2) {
+    if (!offCanvas) {
+      offCanvas = document.createElement('canvas');
+      offCanvas.width = 160; offCanvas.height = 120;
+      offCtx = offCanvas.getContext('2d');
+    }
+    
     offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
-    const currentFrame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+    const curr = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
     if (prevFrame) {
-      const motion = detectMotion(currentFrame, prevFrame);
-      if (motion && (ts - lastHitTime) > cooldownMs) {
-        handleHit(motion, ts);
+      const motion = checkMotion(curr, prevFrame);
+      if (motion > motionThreshold && (ts - lastHitTime) > 150) {
+        hitCount++;
+        document.getElementById('hitCount').textContent = hitCount;
+        playSound();
+        const flash = document.getElementById('hitFlash');
+        flash.classList.add('show');
+        setTimeout(() => flash.classList.remove('show'), 50);
         lastHitTime = ts;
       }
     }
-    prevFrame = currentFrame;
+    prevFrame = curr;
     drawOverlay();
   }
-  requestAnimationFrame(processFrame);
+  requestAnimationFrame(loop);
 }
 
-function detectMotion(curr, prev) {
+function checkMotion(curr, prev) {
   const d1 = curr.data;
   const d2 = prev.data;
-  let mx = 0, my = 0, count = 0;
+  let diffCount = 0;
 
-  for (let i = 0; i < d1.length; i += 4) {
-    const diff = Math.abs(d1[i] - d2[i]);
-    if (diff > motionThreshold * 2) {
-      const x = (i / 4) % offCanvas.width;
-      const y = Math.floor((i / 4) / offCanvas.width);
-      mx += x; my += y; count++;
+  // 選択範囲をオフスキャン用の座標に変換
+  const x1 = Math.floor(selection.x * offCanvas.width);
+  const y1 = Math.floor(selection.y * offCanvas.height);
+  const x2 = Math.floor((selection.x + selection.w) * offCanvas.width);
+  const y2 = Math.floor((selection.y + selection.h) * offCanvas.height);
+
+  for (let y = y1; y < y2; y++) {
+    for (let x = x1; x < x2; x++) {
+      const i = (y * offCanvas.width + x) * 4;
+      if (Math.abs(d1[i] - d2[i]) > 40) diffCount++;
     }
   }
-  if (count > 30) return { x: (mx / count) / offCanvas.width, y: (my / count) / offCanvas.height };
-  return null;
-}
-
-function handleHit(pos, ts) {
-  hitCount++;
-  document.getElementById('hitCount').textContent = hitCount;
-  
-  playDrumSound();
-  
-  const flash = document.getElementById('hitFlash');
-  flash.classList.add('show');
-  setTimeout(() => flash.classList.remove('show'), 50);
-
-  hitTimes.push(ts);
-  if (hitTimes.length > 10) hitTimes.shift();
-  if (hitTimes.length > 2) {
-    const avg = (hitTimes[hitTimes.length-1] - hitTimes[0]) / (hitTimes.length - 1);
-    document.getElementById('bpmVal').textContent = Math.round(60000 / avg);
-  }
+  return (diffCount / ((x2-x1)*(y2-y1))) * 1000;
 }
 
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  ctx.strokeStyle = 'rgba(255, 61, 0, 0.4)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(overlayCanvas.width*0.2, overlayCanvas.height*0.2, overlayCanvas.width*0.6, overlayCanvas.height*0.6);
+  
+  // エリアの描画
+  ctx.strokeStyle = isDragging ? '#ffcc00' : '#ff3d00';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(
+    selection.x * overlayCanvas.width,
+    selection.y * overlayCanvas.height,
+    selection.w * overlayCanvas.width,
+    selection.h * overlayCanvas.height
+  );
+  
+  // 角の装飾
+  ctx.fillStyle = '#ff3d00';
+  ctx.fillRect(selection.x * overlayCanvas.width - 5, selection.y * overlayCanvas.height - 5, 10, 10);
 }
 
-// --- Init ---
+// マウスイベント (座標指定)
+function handleStart(e) {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const x = (e.clientX || e.touches[0].clientX) - rect.left;
+  const y = (e.clientY || e.touches[0].clientY) - rect.top;
+  isDragging = true;
+  startPos = { x: x / rect.width, y: y / rect.height };
+  selection = { x: startPos.x, y: startPos.y, w: 0.01, h: 0.01 };
+}
+
+function handleMove(e) {
+  if (!isDragging) return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  const x = ((e.clientX || e.touches[0].clientX) - rect.left) / rect.width;
+  const y = ((e.clientY || e.touches[0].clientY) - rect.top) / rect.height;
+  
+  selection.x = Math.min(startPos.x, x);
+  selection.y = Math.min(startPos.y, y);
+  selection.w = Math.abs(x - startPos.x);
+  selection.h = Math.abs(y - startPos.y);
+}
+
+function handleEnd() {
+  isDragging = false;
+  if (selection.w < 0.05) selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 }; // 小さすぎたらリセット
+}
+
 window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
-  offCanvas = document.getElementById('offscreen');
   ctx = overlayCanvas.getContext('2d');
-  offCtx = offCanvas.getContext('2d');
 
   document.getElementById('startBtn').onclick = () => startCamera();
-
-  const camSelect = document.getElementById('cameraSelect');
-  camSelect.onchange = (e) => {
-    if (e.target.value) startCamera(e.target.value);
-  };
-
+  document.getElementById('cameraSelect').onchange = (e) => startCamera(e.target.value);
   document.getElementById('motionThresh').oninput = (e) => {
     motionThreshold = e.target.value;
     document.getElementById('motionVal').textContent = motionThreshold;
   };
-  document.getElementById('cooldownSlider').oninput = (e) => {
-    cooldownMs = parseInt(e.target.value);
-    document.getElementById('cooldownVal').textContent = cooldownMs + 'ms';
+  document.getElementById('resetAreaBtn').onclick = () => {
+    selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
   };
 
-  window.addEventListener('resize', resize);
+  // イベント登録
+  overlayCanvas.addEventListener('mousedown', handleStart);
+  window.addEventListener('mousemove', handleMove);
+  window.addEventListener('mouseup', handleEnd);
+  overlayCanvas.addEventListener('touchstart', handleStart);
+  window.addEventListener('touchmove', handleMove);
+  window.addEventListener('touchend', handleEnd);
+
+  window.onresize = () => {
+    overlayCanvas.width = videoEl.clientWidth;
+    overlayCanvas.height = videoEl.clientHeight;
+  };
 };
 </script>
 </body>

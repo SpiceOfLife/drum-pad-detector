@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision - Air Drumming System</title>
+<title>DrumVision - Camera Selectable</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
@@ -91,14 +91,14 @@
     width: 100%; height: 100%;
     object-fit: cover;
     opacity: 0.85;
-    transform: scaleX(-1); /* 鏡像表示 */
+    transform: scaleX(-1);
   }
 
   canvas#overlay {
     position: absolute;
     inset: 0;
     width: 100%; height: 100%;
-    transform: scaleX(-1); /* 鏡像表示に合わせる */
+    transform: scaleX(-1);
   }
 
   canvas#offscreen { display: none; }
@@ -110,6 +110,7 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.05s;
+    z-index: 5;
   }
   .hit-flash.show { opacity: 0.25; }
 
@@ -141,6 +142,7 @@
   }
   .start-btn:hover { background: #ff6d30; transform: scale(1.05); }
 
+  /* Side panel */
   .side {
     background: var(--surface);
     border-left: 1px solid #222;
@@ -175,41 +177,23 @@
     color: var(--text);
   }
 
-  .pad-indicator {
+  /* Dropdown styling */
+  select {
     width: 100%;
-    aspect-ratio: 1;
-    background: #000;
-    border: 1px solid #222;
+    background: #222;
+    color: var(--text);
+    border: 1px solid #444;
+    padding: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    margin-top: 5px;
+    outline: none;
   }
 
-  .ctrl-row {
-    margin-bottom: 12px;
-  }
-
-  .ctrl-row label {
-    display: block;
-    font-size: 0.55rem;
-    color: var(--dim);
-    margin-bottom: 4px;
-  }
-
-  input[type=range] {
-    width: 100%;
-    accent-color: var(--accent);
-  }
-
-  .val-display {
-    font-size: 0.65rem;
-    color: var(--accent2);
-    text-align: right;
-  }
-
-  .hit-log {
-    font-size: 0.6rem;
-    color: var(--dim);
-    max-height: 100px;
-    overflow-y: auto;
-  }
+  .ctrl-row { margin-bottom: 12px; }
+  .ctrl-row label { display: block; font-size: 0.55rem; color: var(--dim); margin-bottom: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .val-display { font-size: 0.65rem; color: var(--accent2); text-align: right; }
 
   footer {
     padding: 8px 20px;
@@ -239,12 +223,19 @@
     <canvas id="offscreen"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
     <div class="no-cam" id="noCam">
-      <button class="start-btn" id="startBtn">ACTIVATE SYSTEM</button>
-      <div id="errMsg" style="display:none; color:var(--accent); margin-top:10px;"></div>
+      <button class="start-btn" id="startBtn">INITIALIZE SYSTEM</button>
+      <div id="errMsg" style="display:none; color:var(--accent); margin-top:10px; max-width: 80%; text-align: center;"></div>
     </div>
   </div>
 
   <div class="side">
+    <div class="panel-section">
+      <div class="panel-label">CAMERA SOURCE</div>
+      <select id="cameraSelect">
+        <option value="">-- SELECT CAMERA --</option>
+      </select>
+    </div>
+
     <div class="panel-section">
       <div class="panel-label">STRIKE COUNT</div>
       <div class="hit-counter" id="hitCount">0</div>
@@ -253,17 +244,6 @@
     <div class="panel-section">
       <div class="panel-label">TEMPO (BPM)</div>
       <div class="bpm-val" id="bpmVal">---</div>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-label">PAD MAP</div>
-      <div class="pad-indicator">
-        <svg viewBox="0 0 100 100" style="width:100%; height:100%;">
-          <polygon points="30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30" fill="none" stroke="#333" stroke-width="1"/>
-          <circle cx="50" cy="50" r="35" fill="none" stroke="#222" stroke-width="1" stroke-dasharray="2,2"/>
-          <circle id="hitMarker" cx="50" cy="50" r="4" fill="none" transition="all 0.1s"/>
-        </svg>
-      </div>
     </div>
 
     <div class="panel-section">
@@ -279,54 +259,42 @@
         <div class="val-display" id="cooldownVal">150ms</div>
       </div>
     </div>
-
-    <div class="panel-section" style="flex:1">
-      <div class="panel-label">LIVE LOG</div>
-      <div id="hitLog" class="hit-log"></div>
-    </div>
   </div>
 </div>
 
 <footer>
-  <span>ENGINE: VISION_CORE v1.0</span>
+  <span>ENGINE: VISION_CORE v1.1</span>
   <span id="fpsDisplay">-- FPS</span>
 </footer>
 
 <script>
 // --- State ---
 let videoEl, overlayCanvas, offCanvas, ctx, offCtx;
+let currentStream = null;
 let prevFrame = null;
 let hitCount = 0;
 let lastHitTime = 0;
 let hitTimes = [];
 let audioCtx = null;
-let padRect = null;
 let motionThreshold = 25;
 let cooldownMs = 150;
+let isProcessing = false;
 
-// --- Audio System ---
+// --- Audio ---
 function initAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
 function playDrumSound(zone) {
   if (!audioCtx) return;
   const now = audioCtx.currentTime;
+  const baseFreq = 65; // Kick-like sound
 
-  // 周波数設定
-  const freqs = { center: 65, mid: 110, rim: 280 };
-  const baseFreq = freqs[zone] || 100;
-
-  // 1. ボディサウンド（低域）
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(baseFreq * 1.8, now);
+  osc.frequency.setValueAtTime(baseFreq * 2, now);
   osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.1);
   gain.gain.setValueAtTime(0.8, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
@@ -335,12 +303,11 @@ function playDrumSound(zone) {
   osc.start(now);
   osc.stop(now + 0.3);
 
-  // 2. インパクトサウンド（高域）
   const snap = audioCtx.createOscillator();
   const snapGain = audioCtx.createGain();
   snap.type = 'triangle';
   snap.frequency.setValueAtTime(1200, now);
-  snapGain.gain.setValueAtTime(0.3, now);
+  snapGain.gain.setValueAtTime(0.2, now);
   snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
   snap.connect(snapGain);
   snapGain.connect(audioCtx.destination);
@@ -348,25 +315,60 @@ function playDrumSound(zone) {
   snap.stop(now + 0.05);
 }
 
-// --- Vision System ---
-async function startSystem() {
-  initAudio(); // 音声の初期化
+// --- Camera Management ---
+async function getCameraList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    const select = document.getElementById('cameraSelect');
+    
+    // 既存のオプションをクリア（初期化用）
+    select.innerHTML = '';
+    
+    videoDevices.forEach((device, index) => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.text = device.label || `Camera ${index + 1}`;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error("Error listing cameras:", err);
+  }
+}
+
+async function startCamera(deviceId = null) {
+  initAudio();
+  
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+  }
+
+  const constraints = {
+    video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' },
+    width: 640,
+    height: 480
+  };
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'user', width: 640, height: 480 } 
-    });
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    currentStream = stream;
     videoEl.srcObject = stream;
     
+    // 初めて起動したときにカメラのラベルを再取得（許可が出た後なら名前が取れるため）
+    if (!deviceId) await getCameraList();
+
     videoEl.onloadedmetadata = () => {
       document.getElementById('noCam').style.display = 'none';
       document.getElementById('camDot').classList.add('active');
       document.getElementById('camLabel').textContent = 'ACTIVE';
       resize();
-      requestAnimationFrame(processFrame);
+      if (!isProcessing) {
+        isProcessing = true;
+        requestAnimationFrame(processFrame);
+      }
     };
   } catch (err) {
-    document.getElementById('errMsg').textContent = "CAMERA ERROR: " + err.message;
+    document.getElementById('errMsg').textContent = "ERROR: " + err.message;
     document.getElementById('errMsg').style.display = 'block';
   }
 }
@@ -374,10 +376,11 @@ async function startSystem() {
 function resize() {
   overlayCanvas.width = videoEl.clientWidth;
   overlayCanvas.height = videoEl.clientHeight;
-  offCanvas.width = 160; // 処理軽量化のため低解像度で解析
+  offCanvas.width = 160;
   offCanvas.height = 120;
 }
 
+// --- Frame Processing ---
 function processFrame(ts) {
   if (videoEl.readyState >= 2) {
     offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
@@ -399,10 +402,8 @@ function processFrame(ts) {
 function detectMotion(curr, prev) {
   const d1 = curr.data;
   const d2 = prev.data;
-  let maxDiff = 0;
   let mx = 0, my = 0, count = 0;
 
-  // 中央エリアを中心に差分をチェック
   for (let i = 0; i < d1.length; i += 4) {
     const diff = Math.abs(d1[i] - d2[i]);
     if (diff > motionThreshold * 2) {
@@ -411,37 +412,20 @@ function detectMotion(curr, prev) {
       mx += x; my += y; count++;
     }
   }
-
-  if (count > 30) {
-    return { x: (mx / count) / offCanvas.width, y: (my / count) / offCanvas.height };
-  }
+  if (count > 30) return { x: (mx / count) / offCanvas.width, y: (my / count) / offCanvas.height };
   return null;
 }
 
 function handleHit(pos, ts) {
   hitCount++;
   document.getElementById('hitCount').textContent = hitCount;
-
-  // ゾーン判定 (中心からの距離)
-  const dx = pos.x - 0.5;
-  const dy = pos.y - 0.5;
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  const zone = dist < 0.15 ? 'center' : dist < 0.35 ? 'mid' : 'rim';
-
-  // 演出
-  playDrumSound(zone);
+  
+  playDrumSound();
   
   const flash = document.getElementById('hitFlash');
   flash.classList.add('show');
   setTimeout(() => flash.classList.remove('show'), 50);
 
-  const marker = document.getElementById('hitMarker');
-  marker.setAttribute('cx', pos.x * 100);
-  marker.setAttribute('cy', pos.y * 100);
-  marker.setAttribute('fill', zone === 'center' ? '#ff3d00' : '#ffcc00');
-  setTimeout(() => marker.setAttribute('fill', 'none'), 200);
-
-  // BPM計算
   hitTimes.push(ts);
   if (hitTimes.length > 10) hitTimes.shift();
   if (hitTimes.length > 2) {
@@ -452,7 +436,7 @@ function handleHit(pos, ts) {
 
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  ctx.strokeStyle = 'rgba(255, 61, 0, 0.5)';
+  ctx.strokeStyle = 'rgba(255, 61, 0, 0.4)';
   ctx.lineWidth = 2;
   ctx.strokeRect(overlayCanvas.width*0.2, overlayCanvas.height*0.2, overlayCanvas.width*0.6, overlayCanvas.height*0.6);
 }
@@ -465,8 +449,13 @@ window.onload = () => {
   ctx = overlayCanvas.getContext('2d');
   offCtx = offCanvas.getContext('2d');
 
-  document.getElementById('startBtn').onclick = startSystem;
-  
+  document.getElementById('startBtn').onclick = () => startCamera();
+
+  const camSelect = document.getElementById('cameraSelect');
+  camSelect.onchange = (e) => {
+    if (e.target.value) startCamera(e.target.value);
+  };
+
   document.getElementById('motionThresh').oninput = (e) => {
     motionThreshold = e.target.value;
     document.getElementById('motionVal').textContent = motionThreshold;
@@ -475,6 +464,8 @@ window.onload = () => {
     cooldownMs = parseInt(e.target.value);
     document.getElementById('cooldownVal').textContent = cooldownMs + 'ms';
   };
+
+  window.addEventListener('resize', resize);
 };
 </script>
 </body>

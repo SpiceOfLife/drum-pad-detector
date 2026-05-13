@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision - Area Selector</title>
+<title>DrumVision - External Audio</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
   :root {
     --bg: #0a0a0a;
     --surface: #111;
-    --accent: #ff3d00;
-    --accent2: #ffcc00;
+    --accent: #00e5ff; /* スネア用に色を変更 */
+    --accent2: #f0f0f0;
     --text: #f0f0f0;
     --dim: #444;
   }
@@ -44,14 +44,6 @@
     color: var(--accent);
   }
 
-  .status-row {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    font-size: 0.65rem;
-    color: var(--dim);
-  }
-
   .main {
     flex: 1;
     display: grid;
@@ -64,7 +56,6 @@
     overflow: hidden;
     background: #000;
     cursor: crosshair;
-    user-select: none;
   }
 
   video {
@@ -91,7 +82,7 @@
     transition: opacity 0.05s;
     z-index: 6;
   }
-  .hit-flash.show { opacity: 0.2; }
+  .hit-flash.show { opacity: 0.3; }
 
   .no-cam {
     position: absolute;
@@ -101,16 +92,17 @@
     align-items: center;
     justify-content: center;
     z-index: 10;
-    background: rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.9);
   }
 
   .start-btn {
     background: var(--accent);
-    color: #fff;
+    color: #000;
     border: none;
     padding: 18px 40px;
     font-family: 'Bebas Neue', sans-serif;
     font-size: 1.6rem;
+    font-weight: bold;
     cursor: pointer;
     clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
   }
@@ -120,7 +112,6 @@
     border-left: 1px solid #222;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
   }
 
   .panel-section {
@@ -138,7 +129,7 @@
   .hit-counter {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 4rem;
-    color: var(--accent2);
+    color: var(--accent);
     line-height: 1;
   }
 
@@ -150,24 +141,17 @@
     padding: 8px;
     font-size: 0.7rem;
     margin-top: 5px;
+    cursor: pointer;
   }
 
-  .guide-msg {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.6);
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    color: var(--accent2);
-    z-index: 7;
-    pointer-events: none;
+  .status-msg {
+    font-size: 0.6rem;
+    color: #ff3d00;
+    margin-top: 10px;
   }
 
   input[type=range] { width: 100%; accent-color: var(--accent); }
-  .val-display { font-size: 0.65rem; color: var(--accent2); text-align: right; }
+  .val-display { font-size: 0.65rem; color: var(--accent); text-align: right; }
 
   footer { padding: 8px 20px; font-size: 0.55rem; color: #333; border-top: 1px solid #1a1a1a; }
 </style>
@@ -176,9 +160,7 @@
 
 <header>
   <div class="logo">Drum<span>Vision</span></div>
-  <div class="status-row">
-    <div id="camLabel">OFFLINE</div>
-  </div>
+  <div id="loadingStatus" style="font-size: 0.6rem; color: #888;">AUDIO: STANDBY</div>
 </header>
 
 <div class="main">
@@ -186,9 +168,10 @@
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
-    <div class="guide-msg" id="guideMsg">ドラッグして判定エリアを選択してください</div>
     <div class="no-cam" id="noCam">
-      <button class="start-btn" id="startBtn">START SYSTEM</button>
+      <div id="loadInfo" style="color: #fff; margin-bottom: 15px; font-size: 0.8rem;">snare.mp3 を読み込み中...</div>
+      <button class="start-btn" id="startBtn" disabled>WAITING FOR AUDIO...</button>
+      <div class="status-msg" id="statusMsg"></div>
     </div>
   </div>
 
@@ -199,23 +182,23 @@
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">STRIKES</div>
+      <div class="panel-label">SNARE HITS</div>
       <div class="hit-counter" id="hitCount">0</div>
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">THRESHOLD</div>
+      <div class="panel-label">MOTION SENSITIVITY</div>
       <input type="range" id="motionThresh" min="5" max="80" value="25">
       <div class="val-display" id="motionVal">25</div>
     </div>
 
     <div class="panel-section">
-      <button class="sub-btn" id="resetAreaBtn">AREA RESET</button>
+      <button class="sub-btn" id="resetAreaBtn">RESET AREA</button>
     </div>
   </div>
 </div>
 
-<footer>AREA SELECTOR ENABLED</footer>
+<footer>SOURCE: snare.mp3 | AREA SELECTOR ENABLED</footer>
 
 <script>
 let videoEl, overlayCanvas, ctx;
@@ -225,47 +208,55 @@ let prevFrame = null;
 let hitCount = 0;
 let lastHitTime = 0;
 let audioCtx = null;
+let snareBuffer = null; // スネアの音源データ
 let motionThreshold = 25;
 
-// エリア選択用
-let selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 }; // 正規化座標 (0~1)
+// エリア選択
+let selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
 let isDragging = false;
 let startPos = { x: 0, y: 0 };
 
-function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+// --- Audio Loading ---
+async function loadSnareSound() {
+  const statusLabel = document.getElementById('loadingStatus');
+  const startBtn = document.getElementById('startBtn');
+  const loadInfo = document.getElementById('loadInfo');
+
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // 同ディレクトリの snare.mp3 を取得
+    const response = await fetch('snare.mp3');
+    if (!response.ok) throw new Error('snare.mp3が見つかりません');
+    
+    const arrayBuffer = await response.arrayBuffer();
+    snareBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    
+    statusLabel.textContent = 'AUDIO: READY';
+    statusLabel.style.color = '#00e5ff';
+    startBtn.disabled = false;
+    startBtn.textContent = 'START SYSTEM';
+    loadInfo.textContent = '音源の読み込みが完了しました';
+  } catch (err) {
+    console.error(err);
+    document.getElementById('statusMsg').textContent = 'エラー: ' + err.message;
+    loadInfo.textContent = 'snare.mp3 を配置してサーバーから実行してください';
+  }
 }
 
-function playSound() {
-  if (!audioCtx) return;
-  const now = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.frequency.setValueAtTime(70, now);
-  osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.2);
-  gain.gain.setValueAtTime(0.5, now);
-  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(now + 0.2);
+function playSnare() {
+  if (!audioCtx || !snareBuffer) return;
+  
+  // バッファソースを作成（再生のたびに作成する必要がある）
+  const source = audioCtx.createBufferSource();
+  source.buffer = snareBuffer;
+  source.connect(audioCtx.destination);
+  source.start(0);
 }
 
-async function getCameras() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const select = document.getElementById('cameraSelect');
-  select.innerHTML = '';
-  devices.filter(d => d.kind === 'videoinput').forEach(d => {
-    const opt = document.createElement('option');
-    opt.value = d.deviceId;
-    opt.text = d.label || 'Camera';
-    select.appendChild(opt);
-  });
-}
-
+// --- Vision Logic ---
 async function startCamera(id = null) {
-  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   if (currentStream) currentStream.getTracks().forEach(t => t.stop());
   
   const constraints = { 
@@ -273,11 +264,14 @@ async function startCamera(id = null) {
     width: 640, height: 480 
   };
   
-  currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-  videoEl.srcObject = currentStream;
-  document.getElementById('noCam').style.display = 'none';
-  await getCameras();
-  requestAnimationFrame(loop);
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = currentStream;
+    document.getElementById('noCam').style.display = 'none';
+    requestAnimationFrame(loop);
+  } catch (err) {
+    alert("カメラが起動できませんでした。");
+  }
 }
 
 function loop(ts) {
@@ -293,10 +287,11 @@ function loop(ts) {
 
     if (prevFrame) {
       const motion = checkMotion(curr, prevFrame);
+      // 感度とクールダウン(150ms)
       if (motion > motionThreshold && (ts - lastHitTime) > 150) {
         hitCount++;
         document.getElementById('hitCount').textContent = hitCount;
-        playSound();
+        playSnare();
         const flash = document.getElementById('hitFlash');
         flash.classList.add('show');
         setTimeout(() => flash.classList.remove('show'), 50);
@@ -314,7 +309,6 @@ function checkMotion(curr, prev) {
   const d2 = prev.data;
   let diffCount = 0;
 
-  // 選択範囲をオフスキャン用の座標に変換
   const x1 = Math.floor(selection.x * offCanvas.width);
   const y1 = Math.floor(selection.y * offCanvas.height);
   const x2 = Math.floor((selection.x + selection.w) * offCanvas.width);
@@ -323,7 +317,9 @@ function checkMotion(curr, prev) {
   for (let y = y1; y < y2; y++) {
     for (let x = x1; x < x2; x++) {
       const i = (y * offCanvas.width + x) * 4;
-      if (Math.abs(d1[i] - d2[i]) > 40) diffCount++;
+      // 輝度変化で判定
+      const brightnessDiff = Math.abs(d1[i] - d2[i]);
+      if (brightnessDiff > 45) diffCount++;
     }
   }
   return (diffCount / ((x2-x1)*(y2-y1))) * 1000;
@@ -331,9 +327,7 @@ function checkMotion(curr, prev) {
 
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  
-  // エリアの描画
-  ctx.strokeStyle = isDragging ? '#ffcc00' : '#ff3d00';
+  ctx.strokeStyle = isDragging ? '#ffcc00' : '#00e5ff';
   ctx.lineWidth = 3;
   ctx.strokeRect(
     selection.x * overlayCanvas.width,
@@ -341,55 +335,47 @@ function drawOverlay() {
     selection.w * overlayCanvas.width,
     selection.h * overlayCanvas.height
   );
-  
-  // 角の装飾
-  ctx.fillStyle = '#ff3d00';
-  ctx.fillRect(selection.x * overlayCanvas.width - 5, selection.y * overlayCanvas.height - 5, 10, 10);
 }
 
-// マウスイベント (座標指定)
+// エリア選択イベント
 function handleStart(e) {
   const rect = overlayCanvas.getBoundingClientRect();
   const x = (e.clientX || e.touches[0].clientX) - rect.left;
   const y = (e.clientY || e.touches[0].clientY) - rect.top;
   isDragging = true;
   startPos = { x: x / rect.width, y: y / rect.height };
-  selection = { x: startPos.x, y: startPos.y, w: 0.01, h: 0.01 };
 }
 
 function handleMove(e) {
   if (!isDragging) return;
   const rect = overlayCanvas.getBoundingClientRect();
-  const x = ((e.clientX || e.touches[0].clientX) - rect.left) / rect.width;
-  const y = ((e.clientY || e.touches[0].clientY) - rect.top) / rect.height;
-  
-  selection.x = Math.min(startPos.x, x);
-  selection.y = Math.min(startPos.y, y);
-  selection.w = Math.abs(x - startPos.x);
-  selection.h = Math.abs(y - startPos.y);
+  const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) / rect.width;
+  const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) / rect.height;
+  selection.x = Math.max(0, Math.min(startPos.x, x));
+  selection.y = Math.max(0, Math.min(startPos.y, y));
+  selection.w = Math.min(1.0 - selection.x, Math.abs(x - startPos.x));
+  selection.h = Math.min(1.0 - selection.y, Math.abs(y - startPos.y));
 }
 
-function handleEnd() {
-  isDragging = false;
-  if (selection.w < 0.05) selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 }; // 小さすぎたらリセット
-}
+function handleEnd() { isDragging = false; }
 
 window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
   ctx = overlayCanvas.getContext('2d');
 
+  // 音源読み込み開始
+  loadSnareSound();
+
   document.getElementById('startBtn').onclick = () => startCamera();
-  document.getElementById('cameraSelect').onchange = (e) => startCamera(e.target.value);
+  document.getElementById('resetAreaBtn').onclick = () => {
+    selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
+  };
   document.getElementById('motionThresh').oninput = (e) => {
     motionThreshold = e.target.value;
     document.getElementById('motionVal').textContent = motionThreshold;
   };
-  document.getElementById('resetAreaBtn').onclick = () => {
-    selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
-  };
 
-  // イベント登録
   overlayCanvas.addEventListener('mousedown', handleStart);
   window.addEventListener('mousemove', handleMove);
   window.addEventListener('mouseup', handleEnd);

@@ -2,41 +2,92 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision 3D - MediaPipe Powered</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DrumVision 3D - Fixed Drawer & AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
-  :root { --bg: #000; --accent: #00ff88; --text: #f0f0f0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; overflow: hidden; }
 
-  .viewport { position: relative; width: 100vw; height: 100vh; }
-  video#input_video { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
-  canvas#output_canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 5; }
-
-  /* UI Layer */
-  .ui-overlay {
-    position: absolute; top: 20px; left: 20px; z-index: 10;
-    background: rgba(0,0,0,0.7); padding: 20px; border: 1px solid var(--accent); border-radius: 8px;
+  :root {
+    --bg: #000;
+    --surface: rgba(20, 20, 20, 0.95);
+    --accent: #00ff88;
+    --text: #f0f0f0;
   }
-  .hit-counter { font-family: 'Bebas Neue'; font-size: 4rem; color: var(--accent); line-height: 1; }
-  .status { font-size: 0.7rem; margin-top: 10px; color: #888; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; height: 100dvh; overflow: hidden; touch-action: none; }
+
+  /* 3D Viewport */
+  .viewport { position: relative; width: 100vw; height: 100vh; z-index: 1; }
+  video#input_video { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0.5; z-index: 2; transform: scaleX(-1); }
+  canvas#output_canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 3; transform: scaleX(-1); }
+
+  /* Drawer Sidebar (Fixed to Front) */
+  .side-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 300px;
+    height: 100%;
+    background: var(--surface);
+    backdrop-filter: blur(15px);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    z-index: 99999;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    padding: 30px 20px;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.8);
+  }
+
+  .side-drawer.open { transform: translateX(0); }
+
+  /* Toggle Button */
+  .drawer-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 100000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  }
+
+  /* UI Components */
+  .header-mini { margin-bottom: 20px; }
+  .logo-mini { font-family: 'Bebas Neue'; font-size: 1.8rem; color: var(--accent); }
+  .hit-counter { font-family: 'Bebas Neue'; font-size: 6rem; color: var(--accent); text-align: center; margin: 10px 0; line-height: 1; }
+  .panel-label { font-size: 0.6rem; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
   
-  .hit-flash { position: absolute; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 20; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin-top: 10px; cursor: pointer; }
+  .status-info { font-size: 0.7rem; color: var(--accent); margin-top: 10px; border: 1px solid var(--accent); padding: 5px; text-align: center; border-radius: 4px; }
+
+  /* Effects */
+  .hit-flash { position: absolute; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 50; }
   .hit-flash.active { animation: flashAnim 0.1s; }
   @keyframes flashAnim { from { opacity: 0.3; } to { opacity: 0; } }
 
   .loading-screen {
     position: fixed; inset: 0; background: #000; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; z-index: 100;
+    align-items: center; justify-content: center; z-index: 200000;
   }
   .start-btn {
-    background: var(--accent); color: #000; border: none; padding: 15px 40px;
-    font-family: 'Bebas Neue'; font-size: 1.5rem; cursor: pointer; display: none;
+    background: var(--accent); color: #000; border: none; padding: 20px 50px;
+    font-family: 'Bebas Neue'; font-size: 2rem; cursor: pointer; border-radius: 5px;
   }
 </style>
 </head>
@@ -47,16 +98,35 @@
   <canvas id="output_canvas"></canvas>
   <div class="hit-flash" id="hitFlash"></div>
 
-  <div class="ui-overlay">
-    <div style="font-size:0.6rem; letter-spacing:2px; color:#888;">STRIKE COUNT</div>
-    <div class="hit-counter" id="hitCount">0</div>
-    <div class="status" id="statusInfo">INITIALIZING AI...</div>
-    <div id="zDepthInfo" style="font-size:0.6rem; color:#ffcc00; margin-top:5px;">Z-DEPTH: --</div>
-  </div>
+  <div class="drawer-toggle" id="drawerBtn">⚙️</div>
+
+  <aside class="side-drawer" id="drawer">
+    <div class="header-mini">
+      <div class="logo-mini">DRUMVISION 3D</div>
+      <div class="status-info" id="aiStatus">AI: STANDBY</div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">STRIKES</div>
+      <div class="hit-counter" id="hitCount">0</div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">3D SENSITIVITY (Z-DEPTH)</div>
+      <input type="range" id="motionThresh" min="10" max="100" value="25">
+      <div style="text-align: right; color:var(--accent); font-size:0.8rem; margin-top:5px;" id="motionVal">0.025</div>
+    </div>
+
+    <div style="margin-top:auto; font-size:0.6rem; color:#666; line-height: 1.5;">
+      <p>● SWIPE LEFT: OPEN SETTINGS</p>
+      <p>● SWIPE RIGHT: CLOSE PANEL</p>
+      <p>● DETECTS: Z-AXIS DEPTH VELOCITY</p>
+    </div>
+  </aside>
 
   <div class="loading-screen" id="loader">
-    <div id="loadText" style="margin-bottom:20px;">AI MODELS LOADING...</div>
-    <button class="start-btn" id="startBtn">START 3D SESSION</button>
+    <div id="loadText" style="margin-bottom:20px; font-family:'Space Mono';">LOADING AI MODELS...</div>
+    <button class="start-btn" id="startBtn" style="display:none;">ACTIVATE 3D</button>
   </div>
 </div>
 
@@ -64,23 +134,36 @@
 const videoElement = document.getElementById('input_video');
 const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d');
-const hitCountEl = document.getElementById('hitCount');
-const zDepthEl = document.getElementById('zDepthInfo');
+const drawer = document.getElementById('drawer');
+const drawerBtn = document.getElementById('drawerBtn');
 
-let hitCount = 0;
-let lastZ = 0;
-let zVelocity = 0;
 let snareBuffer, audioCtx;
-let lastHitTime = 0;
+let hitCount = 0, lastZ = 0, lastHitTime = 0;
+let zThreshold = 0.025; // ヒット判定のZ軸速度しきい値
+
+// --- Drawer & Swipe Logic ---
+drawerBtn.onclick = (e) => {
+  e.stopPropagation();
+  drawer.classList.toggle('open');
+};
+
+let touchStartX = 0;
+window.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX, {passive: true});
+window.addEventListener('touchend', e => {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (diff > 80 && touchStartX > window.innerWidth * 0.7) drawer.classList.add('open');
+  if (diff < -80 && drawer.classList.contains('open')) drawer.classList.remove('open');
+}, {passive: true});
 
 // --- Audio ---
 async function initAudio() {
+  if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   try {
     const res = await fetch('snare.mp3');
     const data = await res.arrayBuffer();
     snareBuffer = await audioCtx.decodeAudioData(data);
-  } catch(e) { console.warn("snare.mp3 not found."); }
+  } catch(e) { console.error("snare.mp3 not found."); }
 }
 
 function playSnare() {
@@ -89,7 +172,7 @@ function playSnare() {
   s.buffer = snareBuffer; s.connect(audioCtx.destination); s.start(0);
 }
 
-// --- MediaPipe Implementation ---
+// --- MediaPipe Hands ---
 const hands = new Hands({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
 });
@@ -97,55 +180,49 @@ const hands = new Hands({
 hands.setOptions({
   maxNumHands: 1,
   modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
 });
 
 hands.onResults(onResults);
 
 function onResults(results) {
-  // Canvas preparation
+  // サイズ合わせ
   canvasElement.width = videoElement.clientWidth;
   canvasElement.height = videoElement.clientHeight;
+  
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-    document.getElementById('statusInfo').textContent = "HAND TRACKED (3D)";
+    document.getElementById('aiStatus').textContent = "TRACKING: ACTIVE";
     
     for (const landmarks of results.multiHandLandmarks) {
-      // Draw skeleton
+      // 描画
       drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00ff88', lineWidth: 2});
       drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
 
-      // 立体認識（Z軸解析）
-      // 8番: 人差し指の指先 (Index Finger Tip)
-      const indexTip = landmarks[8];
-      const currentZ = indexTip.z; // 相対的な奥行き
+      // 人差し指先端(8)のZ座標解析
+      const currentZ = landmarks[8].z;
+      const zVelocity = currentZ - lastZ; 
       
-      zVelocity = currentZ - lastZ;
-      zDepthEl.textContent = `Z-DEPTH: ${currentZ.toFixed(3)} | VEL: ${zVelocity.toFixed(3)}`;
-
-      // 【3Dヒット判定ロジック】
-      // 1. Z軸方向へ急激な移動がある（奥に叩きつける動き）
-      // 2. 速度が一定のしきい値を超えた
-      // 3. 一定の奥行き（画面奥側）に達した
       const now = Date.now();
-      if (zVelocity > 0.025 && currentZ > -0.05 && (now - lastHitTime > 150)) {
+      // 立体ヒット判定: Z軸方向（奥）への急加速を検知
+      if (zVelocity > zThreshold && (now - lastHitTime > 150)) {
         triggerHit();
         lastHitTime = now;
       }
       lastZ = currentZ;
     }
   } else {
-    document.getElementById('statusInfo').textContent = "SEARCHING FOR HAND...";
+    document.getElementById('aiStatus').textContent = "SEARCHING FOR HAND...";
   }
   canvasCtx.restore();
 }
 
 function triggerHit() {
   hitCount++;
-  hitCountEl.textContent = hitCount;
+  document.getElementById('hitCount').textContent = hitCount;
   playSnare();
   const flash = document.getElementById('hitFlash');
   flash.classList.add('active');
@@ -157,18 +234,30 @@ const camera = new Camera(videoElement, {
   onFrame: async () => {
     await hands.send({image: videoElement});
   },
-  width: 1280,
-  height: 720
+  width: 1280, height: 720
 });
 
-window.onload = async () => {
-  document.getElementById('loadText').textContent = "AI READY. PREPARE AUDIO.";
-  document.getElementById('startBtn').style.display = "block";
+window.onload = () => {
+  const startBtn = document.getElementById('startBtn');
+  const loadText = document.getElementById('loadText');
   
-  document.getElementById('startBtn').onclick = async () => {
+  // モデル読み込みの模擬待ち（MediaPipeは初期化時にモデルを取得するため）
+  setTimeout(() => {
+    loadText.textContent = "AI READY. PREPARE SNARE.MP3";
+    startBtn.style.display = "block";
+  }, 1000);
+
+  startBtn.onclick = async () => {
     await initAudio();
     document.getElementById('loader').style.display = "none";
     camera.start();
+  };
+
+  // 感度調整
+  document.getElementById('motionThresh').oninput = (e) => {
+    const val = parseInt(e.target.value);
+    zThreshold = val / 1000;
+    document.getElementById('motionVal').textContent = zThreshold.toFixed(3);
   };
 };
 </script>

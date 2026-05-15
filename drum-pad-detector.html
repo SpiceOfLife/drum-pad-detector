@@ -3,21 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision - External Audio</title>
+<title>DrumVision Pro - Auto Detect</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
   :root {
     --bg: #0a0a0a;
     --surface: #111;
-    --accent: #00e5ff; /* スネア用に色を変更 */
-    --accent2: #f0f0f0;
+    --accent: #00ff88;
     --text: #f0f0f0;
     --dim: #444;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
     background: var(--bg);
     color: var(--text);
@@ -34,55 +32,36 @@
     justify-content: space-between;
     padding: 12px 20px;
     border-bottom: 1px solid #222;
-    flex-shrink: 0;
   }
 
-  .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 4px;
-    color: var(--accent);
-  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 4px; }
 
-  .main {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 220px;
-    min-height: 0;
-  }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 240px; min-height: 0; }
 
   .camera-wrap {
     position: relative;
     overflow: hidden;
     background: #000;
-    cursor: crosshair;
   }
 
-  video {
+  video, canvas#overlay {
     position: absolute;
     inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
-    opacity: 0.8;
-  }
-
-  canvas#overlay {
-    position: absolute;
-    inset: 0;
-    width: 100%; height: 100%;
-    z-index: 5;
+    transform: scaleX(-1); /* 鏡像表示 */
   }
 
   .hit-flash {
     position: absolute;
     inset: 0;
-    background: var(--accent);
+    background: white;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.05s;
-    z-index: 6;
+    z-index: 10;
   }
-  .hit-flash.show { opacity: 0.3; }
+  .hit-flash.show { opacity: 0.2; }
 
   .no-cam {
     position: absolute;
@@ -91,76 +70,46 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 10;
-    background: rgba(0,0,0,0.9);
+    z-index: 20;
+    background: rgba(0,0,0,0.8);
   }
 
   .start-btn {
     background: var(--accent);
     color: #000;
     border: none;
-    padding: 18px 40px;
+    padding: 20px 40px;
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.6rem;
-    font-weight: bold;
+    font-size: 1.8rem;
     cursor: pointer;
-    clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+    border-radius: 4px;
   }
 
-  .side {
-    background: var(--surface);
-    border-left: 1px solid #222;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .panel-section {
-    padding: 16px;
-    border-bottom: 1px solid #1a1a1a;
-  }
-
-  .panel-label {
-    font-size: 0.55rem;
-    letter-spacing: 2px;
-    color: var(--dim);
-    margin-bottom: 8px;
-  }
-
-  .hit-counter {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 4rem;
-    color: var(--accent);
-    line-height: 1;
-  }
-
-  select, button.sub-btn {
-    width: 100%;
-    background: #222;
-    color: var(--text);
-    border: 1px solid #444;
-    padding: 8px;
-    font-size: 0.7rem;
-    margin-top: 5px;
-    cursor: pointer;
-  }
-
-  .status-msg {
+  .side { background: var(--surface); border-left: 1px solid #222; padding: 20px; }
+  .panel-label { font-size: 0.6rem; color: var(--dim); margin-bottom: 10px; letter-spacing: 2px; }
+  .hit-counter { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; color: var(--accent); line-height: 1; margin-bottom: 20px; }
+  
+  .status-tag {
+    display: inline-block;
+    padding: 4px 8px;
     font-size: 0.6rem;
-    color: #ff3d00;
-    margin-top: 10px;
+    background: #222;
+    border-radius: 3px;
+    color: #888;
   }
+  .status-tag.active { color: var(--accent); border: 1px solid var(--accent); }
 
-  input[type=range] { width: 100%; accent-color: var(--accent); }
-  .val-display { font-size: 0.65rem; color: var(--accent); text-align: right; }
-
-  footer { padding: 8px 20px; font-size: 0.55rem; color: #333; border-top: 1px solid #1a1a1a; }
+  .ctrl-group { margin-top: 30px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 10px 0; }
+  
+  footer { padding: 10px 20px; font-size: 0.6rem; color: #444; border-top: 1px solid #1a1a1a; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Drum<span>Vision</span></div>
-  <div id="loadingStatus" style="font-size: 0.6rem; color: #888;">AUDIO: STANDBY</div>
+  <div class="logo">DRUM<span>VISION</span> PRO</div>
+  <div class="status-tag" id="detectStatus">PAD NOT FOUND</div>
 </header>
 
 <div class="main">
@@ -169,109 +118,139 @@
     <canvas id="overlay"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
     <div class="no-cam" id="noCam">
-      <div id="loadInfo" style="color: #fff; margin-bottom: 15px; font-size: 0.8rem;">snare.mp3 を読み込み中...</div>
-      <button class="start-btn" id="startBtn" disabled>WAITING FOR AUDIO...</button>
-      <div class="status-msg" id="statusMsg"></div>
+      <button class="start-btn" id="startBtn">START DETECTOR</button>
+      <p style="margin-top:15px; font-size:0.7rem; color:#666;">snare.mp3 を同じフォルダに用意してください</p>
     </div>
   </div>
 
   <div class="side">
-    <div class="panel-section">
-      <div class="panel-label">CAMERA</div>
-      <select id="cameraSelect"></select>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-label">SNARE HITS</div>
-      <div class="hit-counter" id="hitCount">0</div>
-    </div>
-
-    <div class="panel-section">
+    <div class="panel-label">AUTO DETECT HITS</div>
+    <div class="hit-counter" id="hitCount">0</div>
+    
+    <div class="ctrl-group">
       <div class="panel-label">MOTION SENSITIVITY</div>
-      <input type="range" id="motionThresh" min="5" max="80" value="25">
-      <div class="val-display" id="motionVal">25</div>
+      <input type="range" id="motionThresh" min="10" max="100" value="40">
+      <div style="font-size:0.7rem; color:var(--accent)" id="motionVal">40</div>
     </div>
 
-    <div class="panel-section">
-      <button class="sub-btn" id="resetAreaBtn">RESET AREA</button>
+    <div style="margin-top:40px; font-size:0.6rem; color:#555; line-height:1.6;">
+      <p>【仕組み】</p>
+      <p>1. 画像解析でグレーのパッドを自動認識</p>
+      <p>2. 枠内の「動きのピーク」を検知して発音</p>
     </div>
   </div>
 </div>
 
-<footer>SOURCE: snare.mp3 | AREA SELECTOR ENABLED</footer>
+<footer>ALGORITHM: ADAPTIVE PEAK DETECTION v2.0</footer>
 
 <script>
 let videoEl, overlayCanvas, ctx;
 let offCanvas, offCtx;
+let snareBuffer = null, audioCtx = null;
 let currentStream = null;
+
+// 解析用
+let padRect = null; // {x, y, w, h}
 let prevFrame = null;
+let motionHistory = [0, 0, 0];
 let hitCount = 0;
 let lastHitTime = 0;
-let audioCtx = null;
-let snareBuffer = null; // スネアの音源データ
-let motionThreshold = 25;
+let motionThreshold = 40;
 
-// エリア選択
-let selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
-let isDragging = false;
-let startPos = { x: 0, y: 0 };
-
-// --- Audio Loading ---
-async function loadSnareSound() {
-  const statusLabel = document.getElementById('loadingStatus');
-  const startBtn = document.getElementById('startBtn');
-  const loadInfo = document.getElementById('loadInfo');
-
+// --- Audio ---
+async function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // 同ディレクトリの snare.mp3 を取得
-    const response = await fetch('snare.mp3');
-    if (!response.ok) throw new Error('snare.mp3が見つかりません');
-    
-    const arrayBuffer = await response.arrayBuffer();
-    snareBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    
-    statusLabel.textContent = 'AUDIO: READY';
-    statusLabel.style.color = '#00e5ff';
-    startBtn.disabled = false;
-    startBtn.textContent = 'START SYSTEM';
-    loadInfo.textContent = '音源の読み込みが完了しました';
-  } catch (err) {
-    console.error(err);
-    document.getElementById('statusMsg').textContent = 'エラー: ' + err.message;
-    loadInfo.textContent = 'snare.mp3 を配置してサーバーから実行してください';
+    const res = await fetch('snare.mp3');
+    const data = await res.arrayBuffer();
+    snareBuffer = await audioCtx.decodeAudioData(data);
+  } catch(e) {
+    console.error("Audio Load Error:", e);
   }
 }
 
 function playSnare() {
-  if (!audioCtx || !snareBuffer) return;
-  
-  // バッファソースを作成（再生のたびに作成する必要がある）
+  if (!snareBuffer || !audioCtx) return;
   const source = audioCtx.createBufferSource();
   source.buffer = snareBuffer;
   source.connect(audioCtx.destination);
   source.start(0);
 }
 
-// --- Vision Logic ---
-async function startCamera(id = null) {
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-  
-  const constraints = { 
-    video: id ? { deviceId: id } : { facingMode: 'user' },
-    width: 640, height: 480 
-  };
-  
-  try {
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    videoEl.srcObject = currentStream;
-    document.getElementById('noCam').style.display = 'none';
-    requestAnimationFrame(loop);
-  } catch (err) {
-    alert("カメラが起動できませんでした。");
+// --- Vision: ドラムパッドの自動検出 ---
+function findDrumPad(imageData) {
+  const { data, width, height } = imageData;
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+  let foundCount = 0;
+
+  for (let y = 0; y < height; y += 4) {
+    for (let x = 0; x < width; x += 4) {
+      const i = (y * width + x) * 4;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      
+      // 写真のような「グレーのパッド」を抽出するフィルタ
+      // 彩度が低く、明るさが一定範囲(40-120)のピクセルを検索
+      const brightness = (r + g + b) / 3;
+      const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+
+      if (brightness > 30 && brightness < 130 && saturation < 20) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        foundCount++;
+      }
+    }
   }
+
+  // ある程度の大きさの塊があればパッドとみなす
+  if (foundCount > 150) {
+    const targetRect = {
+      x: minX / width,
+      y: minY / height,
+      w: (maxX - minX) / width,
+      h: (maxY - minY) / height
+    };
+    
+    // 急激な枠の変動を抑えるための簡易スムージング
+    if (!padRect) {
+      padRect = targetRect;
+    } else {
+      padRect.x += (targetRect.x - padRect.x) * 0.1;
+      padRect.y += (targetRect.y - padRect.y) * 0.1;
+      padRect.w += (targetRect.w - padRect.w) * 0.1;
+      padRect.h += (targetRect.h - padRect.h) * 0.1;
+    }
+    return true;
+  }
+  return false;
+}
+
+// --- Vision: ヒット判定（ピーク検知） ---
+function analyzeHit(curr, prev) {
+  if (!padRect) return 0;
+
+  const d1 = curr.data;
+  const d2 = prev.data;
+  const w = offCanvas.width;
+  
+  const x1 = Math.floor(padRect.x * w);
+  const y1 = Math.floor(padRect.y * offCanvas.height);
+  const x2 = Math.floor((padRect.x + padRect.w) * w);
+  const y2 = Math.floor((padRect.y + padRect.h) * offCanvas.height);
+
+  let diffSum = 0;
+  let pixels = 0;
+
+  for (let y = y1; y < y2; y += 2) {
+    for (let x = x1; x < x2; x += 2) {
+      const i = (y * w + x) * 4;
+      const diff = Math.abs(d1[i] - d2[i]);
+      if (diff > 30) diffSum += diff;
+      pixels++;
+    }
+  }
+  return pixels > 0 ? (diffSum / pixels) * 10 : 0;
 }
 
 function loop(ts) {
@@ -281,108 +260,95 @@ function loop(ts) {
       offCanvas.width = 160; offCanvas.height = 120;
       offCtx = offCanvas.getContext('2d');
     }
-    
-    offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
-    const curr = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
-    if (prevFrame) {
-      const motion = checkMotion(curr, prevFrame);
-      // 感度とクールダウン(150ms)
-      if (motion > motionThreshold && (ts - lastHitTime) > 150) {
-        hitCount++;
-        document.getElementById('hitCount').textContent = hitCount;
-        playSnare();
-        const flash = document.getElementById('hitFlash');
-        flash.classList.add('show');
-        setTimeout(() => flash.classList.remove('show'), 50);
-        lastHitTime = ts;
+    offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
+    const frame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+
+    // 1. パッドの自動位置検出
+    const found = findDrumPad(frame);
+    const statusTag = document.getElementById('detectStatus');
+    if (found) {
+      statusTag.textContent = "PAD TRACKING";
+      statusTag.classList.add('active');
+    } else {
+      statusTag.textContent = "PAD NOT FOUND";
+      statusTag.classList.remove('active');
+    }
+
+    // 2. 動きの解析とピーク検知
+    if (prevFrame && found) {
+      const motion = analyzeHit(frame, prevFrame);
+      motionHistory.push(motion);
+      motionHistory.shift();
+
+      const currentMotion = motionHistory[2];
+      const prevMotion = motionHistory[1];
+      const olderMotion = motionHistory[0];
+
+      // ピーク判定ロジック：前フレームが閾値を超え、かつ現在のフレームで減少に転じた時
+      if (prevMotion > motionThreshold && prevMotion > currentMotion && prevMotion > olderMotion) {
+        if (ts - lastHitTime > 120) { // クールダウン
+          hitCount++;
+          document.getElementById('hitCount').textContent = hitCount;
+          playSnare();
+          
+          const flash = document.getElementById('hitFlash');
+          flash.classList.add('show');
+          setTimeout(() => flash.classList.remove('show'), 50);
+          lastHitTime = ts;
+        }
       }
     }
-    prevFrame = curr;
+    prevFrame = frame;
     drawOverlay();
   }
   requestAnimationFrame(loop);
 }
 
-function checkMotion(curr, prev) {
-  const d1 = curr.data;
-  const d2 = prev.data;
-  let diffCount = 0;
-
-  const x1 = Math.floor(selection.x * offCanvas.width);
-  const y1 = Math.floor(selection.y * offCanvas.height);
-  const x2 = Math.floor((selection.x + selection.w) * offCanvas.width);
-  const y2 = Math.floor((selection.y + selection.h) * offCanvas.height);
-
-  for (let y = y1; y < y2; y++) {
-    for (let x = x1; x < x2; x++) {
-      const i = (y * offCanvas.width + x) * 4;
-      // 輝度変化で判定
-      const brightnessDiff = Math.abs(d1[i] - d2[i]);
-      if (brightnessDiff > 45) diffCount++;
-    }
-  }
-  return (diffCount / ((x2-x1)*(y2-y1))) * 1000;
-}
-
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  ctx.strokeStyle = isDragging ? '#ffcc00' : '#00e5ff';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(
-    selection.x * overlayCanvas.width,
-    selection.y * overlayCanvas.height,
-    selection.w * overlayCanvas.width,
-    selection.h * overlayCanvas.height
-  );
+  if (padRect) {
+    // パッドの枠を描画
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 5]);
+    ctx.strokeRect(
+      padRect.x * overlayCanvas.width,
+      padRect.y * overlayCanvas.height,
+      padRect.w * overlayCanvas.width,
+      padRect.h * overlayCanvas.height
+    );
+    
+    // ラベル
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 14px Space Mono';
+    ctx.fillText("TARGET: PAD", padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height - 10);
+  }
 }
 
-// エリア選択イベント
-function handleStart(e) {
-  const rect = overlayCanvas.getBoundingClientRect();
-  const x = (e.clientX || e.touches[0].clientX) - rect.left;
-  const y = (e.clientY || e.touches[0].clientY) - rect.top;
-  isDragging = true;
-  startPos = { x: x / rect.width, y: y / rect.height };
+async function start() {
+  await initAudio();
+  currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+  videoEl.srcObject = currentStream;
+  document.getElementById('noCam').style.display = 'none';
+  
+  overlayCanvas.width = videoEl.clientWidth;
+  overlayCanvas.height = videoEl.clientHeight;
+  ctx = overlayCanvas.getContext('2d');
+  
+  requestAnimationFrame(loop);
 }
-
-function handleMove(e) {
-  if (!isDragging) return;
-  const rect = overlayCanvas.getBoundingClientRect();
-  const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) / rect.width;
-  const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) / rect.height;
-  selection.x = Math.max(0, Math.min(startPos.x, x));
-  selection.y = Math.max(0, Math.min(startPos.y, y));
-  selection.w = Math.min(1.0 - selection.x, Math.abs(x - startPos.x));
-  selection.h = Math.min(1.0 - selection.y, Math.abs(y - startPos.y));
-}
-
-function handleEnd() { isDragging = false; }
 
 window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
-  ctx = overlayCanvas.getContext('2d');
-
-  // 音源読み込み開始
-  loadSnareSound();
-
-  document.getElementById('startBtn').onclick = () => startCamera();
-  document.getElementById('resetAreaBtn').onclick = () => {
-    selection = { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
-  };
+  
+  document.getElementById('startBtn').onclick = start;
   document.getElementById('motionThresh').oninput = (e) => {
-    motionThreshold = e.target.value;
+    motionThreshold = parseInt(e.target.value);
     document.getElementById('motionVal').textContent = motionThreshold;
   };
-
-  overlayCanvas.addEventListener('mousedown', handleStart);
-  window.addEventListener('mousemove', handleMove);
-  window.addEventListener('mouseup', handleEnd);
-  overlayCanvas.addEventListener('touchstart', handleStart);
-  window.addEventListener('touchmove', handleMove);
-  window.addEventListener('touchend', handleEnd);
-
+  
   window.onresize = () => {
     overlayCanvas.width = videoEl.clientWidth;
     overlayCanvas.height = videoEl.clientHeight;

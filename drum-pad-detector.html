@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision Pro - Auto Detect</title>
+<title>DrumVision Pro - Cam Selector</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
@@ -36,7 +36,7 @@
 
   .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 4px; }
 
-  .main { flex: 1; display: grid; grid-template-columns: 1fr 240px; min-height: 0; }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 260px; min-height: 0; }
 
   .camera-wrap {
     position: relative;
@@ -49,7 +49,7 @@
     inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
-    transform: scaleX(-1); /* 鏡像表示 */
+    transform: scaleX(-1);
   }
 
   .hit-flash {
@@ -85,9 +85,23 @@
     border-radius: 4px;
   }
 
-  .side { background: var(--surface); border-left: 1px solid #222; padding: 20px; }
-  .panel-label { font-size: 0.6rem; color: var(--dim); margin-bottom: 10px; letter-spacing: 2px; }
-  .hit-counter { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; color: var(--accent); line-height: 1; margin-bottom: 20px; }
+  .side { background: var(--surface); border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .panel-label { font-size: 0.6rem; color: var(--dim); margin-bottom: 10px; letter-spacing: 2px; text-transform: uppercase; }
+  .hit-counter { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; color: var(--accent); line-height: 1; }
+  
+  select {
+    width: 100%;
+    background: #222;
+    color: var(--text);
+    border: 1px solid #444;
+    padding: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    outline: none;
+  }
+
+  .ctrl-group { margin-top: 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 10px 0; }
   
   .status-tag {
     display: inline-block;
@@ -99,17 +113,14 @@
   }
   .status-tag.active { color: var(--accent); border: 1px solid var(--accent); }
 
-  .ctrl-group { margin-top: 30px; }
-  input[type=range] { width: 100%; accent-color: var(--accent); margin: 10px 0; }
-  
-  footer { padding: 10px 20px; font-size: 0.6rem; color: #444; border-top: 1px solid #1a1a1a; }
+  footer { padding: 10px 20px; font-size: 0.6rem; color: #444; border-top: 1px solid #1a1a1a; display: flex; justify-content: space-between; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">DRUM<span>VISION</span> PRO</div>
-  <div class="status-tag" id="detectStatus">PAD NOT FOUND</div>
+  <div class="status-tag" id="detectStatus">SYSTEM STANDBY</div>
 </header>
 
 <div class="main">
@@ -118,54 +129,68 @@
     <canvas id="overlay"></canvas>
     <div class="hit-flash" id="hitFlash"></div>
     <div class="no-cam" id="noCam">
-      <button class="start-btn" id="startBtn">START DETECTOR</button>
-      <p style="margin-top:15px; font-size:0.7rem; color:#666;">snare.mp3 を同じフォルダに用意してください</p>
+      <button class="start-btn" id="startBtn">ACTIVATE CAMERA</button>
     </div>
   </div>
 
   <div class="side">
-    <div class="panel-label">AUTO DETECT HITS</div>
-    <div class="hit-counter" id="hitCount">0</div>
-    
-    <div class="ctrl-group">
-      <div class="panel-label">MOTION SENSITIVITY</div>
-      <input type="range" id="motionThresh" min="10" max="100" value="40">
-      <div style="font-size:0.7rem; color:var(--accent)" id="motionVal">40</div>
+    <div class="panel-section">
+      <div class="panel-label">CAMERA DEVICE</div>
+      <select id="cameraSelect">
+        <option value="">(Waiting for activation...)</option>
+      </select>
     </div>
 
-    <div style="margin-top:40px; font-size:0.6rem; color:#555; line-height:1.6;">
-      <p>【仕組み】</p>
-      <p>1. 画像解析でグレーのパッドを自動認識</p>
-      <p>2. 枠内の「動きのピーク」を検知して発音</p>
+    <div class="panel-section">
+      <div class="panel-label">STRIKE COUNT</div>
+      <div class="hit-counter" id="hitCount">0</div>
+    </div>
+    
+    <div class="ctrl-group">
+      <div class="panel-label">SENSITIVITY (Peak Thresh)</div>
+      <input type="range" id="motionThresh" min="10" max="100" value="40">
+      <div style="font-size:0.7rem; color:var(--accent); text-align: right;" id="motionVal">40</div>
+    </div>
+
+    <div style="margin-top:auto; font-size:0.55rem; color:#555; line-height:1.6; border-top:1px solid #222; padding-top:15px;">
+      <p>【使用方法】</p>
+      <p>1. カメラを選択してパッドを映す</p>
+      <p>2. 緑の枠がパッドを捉えたら準備完了</p>
+      <p>3. スネア音は snare.mp3 が必要です</p>
     </div>
   </div>
 </div>
 
-<footer>ALGORITHM: ADAPTIVE PEAK DETECTION v2.0</footer>
+<footer>
+  <span>V-CORE: 2.1.0</span>
+  <span id="fpsDisplay">-- FPS</span>
+</footer>
 
 <script>
+// --- Variables ---
 let videoEl, overlayCanvas, ctx;
 let offCanvas, offCtx;
 let snareBuffer = null, audioCtx = null;
 let currentStream = null;
-
-// 解析用
-let padRect = null; // {x, y, w, h}
+let padRect = null;
 let prevFrame = null;
 let motionHistory = [0, 0, 0];
 let hitCount = 0;
 let lastHitTime = 0;
 let motionThreshold = 40;
+let isLooping = false;
 
-// --- Audio ---
+// --- Audio Init ---
 async function initAudio() {
+  if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   try {
     const res = await fetch('snare.mp3');
+    if (!res.ok) throw new Error("File not found");
     const data = await res.arrayBuffer();
     snareBuffer = await audioCtx.decodeAudioData(data);
   } catch(e) {
-    console.error("Audio Load Error:", e);
+    console.warn("Snare sound failed to load. Ensure snare.mp3 is in the same folder.");
   }
 }
 
@@ -177,76 +202,102 @@ function playSnare() {
   source.start(0);
 }
 
-// --- Vision: ドラムパッドの自動検出 ---
-function findDrumPad(imageData) {
+// --- Camera Device Selection ---
+async function updateCameraList() {
+  const select = document.getElementById('cameraSelect');
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    
+    select.innerHTML = '';
+    videoDevices.forEach((device, i) => {
+      const opt = document.createElement('option');
+      opt.value = device.deviceId;
+      opt.text = device.label || `Camera ${i + 1}`;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("Error listing cameras:", e);
+  }
+}
+
+async function changeCamera(deviceId) {
+  if (currentStream) {
+    currentStream.getTracks().forEach(t => t.stop());
+  }
+
+  const constraints = {
+    video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: 640, height: 480 }
+  };
+
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = currentStream;
+    
+    // 初回起動時のみデバイスリストを更新（ラベル取得のため）
+    await updateCameraList();
+    // セレクトボックスの選択状態を維持
+    if(deviceId) document.getElementById('cameraSelect').value = deviceId;
+
+    videoEl.onloadedmetadata = () => {
+      resizeOverlay();
+      if (!isLooping) {
+        isLooping = true;
+        requestAnimationFrame(loop);
+      }
+    };
+  } catch (e) {
+    alert("Camera Access Denied: " + e.message);
+  }
+}
+
+// --- Vision Logic ---
+function findPad(imageData) {
   const { data, width, height } = imageData;
-  let minX = width, minY = height, maxX = 0, maxY = 0;
-  let foundCount = 0;
+  let minX = width, minY = height, maxX = 0, maxY = 0, count = 0;
 
   for (let y = 0; y < height; y += 4) {
     for (let x = 0; x < width; x += 4) {
       const i = (y * width + x) * 4;
       const r = data[i], g = data[i+1], b = data[i+2];
-      
-      // 写真のような「グレーのパッド」を抽出するフィルタ
-      // 彩度が低く、明るさが一定範囲(40-120)のピクセルを検索
       const brightness = (r + g + b) / 3;
-      const saturation = Math.max(r, g, b) - Math.min(r, g, b);
-
-      if (brightness > 30 && brightness < 130 && saturation < 20) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-        foundCount++;
+      const sat = Math.max(r, g, b) - Math.min(r, g, b);
+      
+      // Gray pad detector
+      if (brightness > 35 && brightness < 125 && sat < 18) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        count++;
       }
     }
   }
 
-  // ある程度の大きさの塊があればパッドとみなす
-  if (foundCount > 150) {
-    const targetRect = {
-      x: minX / width,
-      y: minY / height,
-      w: (maxX - minX) / width,
-      h: (maxY - minY) / height
-    };
-    
-    // 急激な枠の変動を抑えるための簡易スムージング
-    if (!padRect) {
-      padRect = targetRect;
-    } else {
-      padRect.x += (targetRect.x - padRect.x) * 0.1;
-      padRect.y += (targetRect.y - padRect.y) * 0.1;
-      padRect.w += (targetRect.w - padRect.w) * 0.1;
-      padRect.h += (targetRect.h - padRect.h) * 0.1;
+  if (count > 150) {
+    const target = { x: minX/width, y: minY/height, w: (maxX-minX)/width, h: (maxY-minY)/height };
+    if (!padRect) padRect = target;
+    else {
+      const lerp = 0.15;
+      padRect.x += (target.x - padRect.x) * lerp; padRect.y += (target.y - padRect.y) * lerp;
+      padRect.w += (target.w - padRect.w) * lerp; padRect.h += (target.h - padRect.h) * lerp;
     }
     return true;
   }
   return false;
 }
 
-// --- Vision: ヒット判定（ピーク検知） ---
-function analyzeHit(curr, prev) {
+function analyzeMotion(curr, prev) {
   if (!padRect) return 0;
+  const d1 = curr.data, d2 = prev.data;
+  const w = offCanvas.width, h = offCanvas.height;
+  const x1 = Math.floor(padRect.x * w), y1 = Math.floor(padRect.y * h);
+  const x2 = Math.floor((padRect.x + padRect.w) * w), y2 = Math.floor((padRect.y + padRect.h) * h);
 
-  const d1 = curr.data;
-  const d2 = prev.data;
-  const w = offCanvas.width;
-  
-  const x1 = Math.floor(padRect.x * w);
-  const y1 = Math.floor(padRect.y * offCanvas.height);
-  const x2 = Math.floor((padRect.x + padRect.w) * w);
-  const y2 = Math.floor((padRect.y + padRect.h) * offCanvas.height);
-
-  let diffSum = 0;
-  let pixels = 0;
-
+  let diffSum = 0, pixels = 0;
   for (let y = y1; y < y2; y += 2) {
     for (let x = x1; x < x2; x += 2) {
       const i = (y * w + x) * 4;
-      const diff = Math.abs(d1[i] - d2[i]);
-      if (diff > 30) diffSum += diff;
+      const d = Math.abs(d1[i] - d2[i]);
+      if (d > 35) diffSum += d;
       pixels++;
     }
   }
@@ -260,41 +311,26 @@ function loop(ts) {
       offCanvas.width = 160; offCanvas.height = 120;
       offCtx = offCanvas.getContext('2d');
     }
-
     offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
     const frame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
-    // 1. パッドの自動位置検出
-    const found = findDrumPad(frame);
-    const statusTag = document.getElementById('detectStatus');
-    if (found) {
-      statusTag.textContent = "PAD TRACKING";
-      statusTag.classList.add('active');
-    } else {
-      statusTag.textContent = "PAD NOT FOUND";
-      statusTag.classList.remove('active');
-    }
+    const found = findPad(frame);
+    const status = document.getElementById('detectStatus');
+    status.textContent = found ? "PAD TRACKING" : "SEARCHING FOR PAD...";
+    status.className = "status-tag" + (found ? " active" : "");
 
-    // 2. 動きの解析とピーク検知
     if (prevFrame && found) {
-      const motion = analyzeHit(frame, prevFrame);
+      const motion = analyzeMotion(frame, prevFrame);
       motionHistory.push(motion);
       motionHistory.shift();
 
-      const currentMotion = motionHistory[2];
-      const prevMotion = motionHistory[1];
-      const olderMotion = motionHistory[0];
-
-      // ピーク判定ロジック：前フレームが閾値を超え、かつ現在のフレームで減少に転じた時
-      if (prevMotion > motionThreshold && prevMotion > currentMotion && prevMotion > olderMotion) {
-        if (ts - lastHitTime > 120) { // クールダウン
+      if (motionHistory[1] > motionThreshold && motionHistory[1] > motionHistory[2] && motionHistory[1] > motionHistory[0]) {
+        if (ts - lastHitTime > 110) {
           hitCount++;
           document.getElementById('hitCount').textContent = hitCount;
           playSnare();
-          
           const flash = document.getElementById('hitFlash');
-          flash.classList.add('show');
-          setTimeout(() => flash.classList.remove('show'), 50);
+          flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 40);
           lastHitTime = ts;
         }
       }
@@ -308,51 +344,41 @@ function loop(ts) {
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
   if (padRect) {
-    // パッドの枠を描画
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([10, 5]);
-    ctx.strokeRect(
-      padRect.x * overlayCanvas.width,
-      padRect.y * overlayCanvas.height,
-      padRect.w * overlayCanvas.width,
-      padRect.h * overlayCanvas.height
-    );
-    
-    // ラベル
-    ctx.fillStyle = '#00ff88';
-    ctx.font = 'bold 14px Space Mono';
-    ctx.fillText("TARGET: PAD", padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height - 10);
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.setLineDash([8, 4]);
+    ctx.strokeRect(padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height, padRect.w * overlayCanvas.width, padRect.h * overlayCanvas.height);
+    ctx.fillStyle = '#00ff88'; ctx.font = '12px Space Mono';
+    ctx.fillText("LOCKED", padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height - 8);
   }
 }
 
-async function start() {
-  await initAudio();
-  currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-  videoEl.srcObject = currentStream;
-  document.getElementById('noCam').style.display = 'none';
-  
+function resizeOverlay() {
   overlayCanvas.width = videoEl.clientWidth;
   overlayCanvas.height = videoEl.clientHeight;
   ctx = overlayCanvas.getContext('2d');
-  
-  requestAnimationFrame(loop);
 }
 
+// --- Lifecycle ---
 window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
-  
-  document.getElementById('startBtn').onclick = start;
+  const camSelect = document.getElementById('cameraSelect');
+
+  document.getElementById('startBtn').onclick = async () => {
+    await initAudio();
+    document.getElementById('noCam').style.display = 'none';
+    await changeCamera();
+  };
+
+  camSelect.onchange = (e) => {
+    changeCamera(e.target.value);
+  };
+
   document.getElementById('motionThresh').oninput = (e) => {
     motionThreshold = parseInt(e.target.value);
     document.getElementById('motionVal').textContent = motionThreshold;
   };
-  
-  window.onresize = () => {
-    overlayCanvas.width = videoEl.clientWidth;
-    overlayCanvas.height = videoEl.clientHeight;
-  };
+
+  window.onresize = resizeOverlay;
 };
 </script>
 </body>

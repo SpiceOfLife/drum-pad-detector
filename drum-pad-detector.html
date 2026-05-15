@@ -3,162 +3,97 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DrumVision Pro - High Precision</title>
+<title>DrumVision Pro - Octagon Lock</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
 
   :root {
-    --bg: #0a0a0a;
-    --surface: #111;
-    --accent: #00ff88;
-    --alert: #ffcc00;
+    --bg: #0d0d0d;
+    --surface: #151515;
+    --accent: #00ff88; /* LOCKED */
+    --detecting: #ffcc00; /* SHAPE VALID */
+    --searching: #ff3d00; /* NO PAD */
     --text: #f0f0f0;
-    --dim: #444;
+    --dim: #555;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    border-bottom: 1px solid #222;
-  }
-
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #2a2a2a; }
   .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 4px; }
 
-  .main { flex: 1; display: grid; grid-template-columns: 1fr 260px; min-height: 0; }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 280px; min-height: 0; }
 
-  .camera-wrap {
-    position: relative;
-    overflow: hidden;
-    background: #000;
-  }
+  .camera-wrap { position: relative; overflow: hidden; background: #000; }
+  video, canvas#overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-  video, canvas#overlay {
-    position: absolute;
-    inset: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-  }
-
-  /* 認識アラートアニメーション */
   #targetAlert {
-    position: absolute;
-    top: 20%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 255, 136, 0.2);
-    border: 2px solid var(--accent);
-    color: var(--accent);
-    padding: 10px 30px;
-    font-weight: bold;
-    font-size: 1.2rem;
-    z-index: 100;
-    pointer-events: none;
-    display: none;
-    animation: alertPop 0.5s ease-out;
+    position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0, 255, 136, 0.15); border: 2px solid var(--accent); color: var(--accent);
+    padding: 15px 40px; font-weight: bold; font-size: 1.4rem; z-index: 100; pointer-events: none;
+    display: none; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 0 30px rgba(0,255,136,0.3);
   }
 
-  @keyframes alertPop {
-    0% { opacity: 0; transform: translate(-50%, -20%); }
-    100% { opacity: 1; transform: translate(-50%, -50%); }
-  }
+  .hit-flash { position: absolute; inset: 0; background: white; opacity: 0; pointer-events: none; transition: opacity 0.05s; z-index: 10; }
+  .hit-flash.show { opacity: 0.25; }
 
-  .hit-flash {
-    position: absolute;
-    inset: 0;
-    background: white;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.05s;
-    z-index: 10;
-  }
-  .hit-flash.show { opacity: 0.2; }
+  .no-cam { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; background: rgba(0,0,0,0.9); gap: 20px;}
+  .start-btn { background: var(--accent); color: #000; border: none; padding: 20px 50px; font-family: 'Bebas Neue', sans-serif; font-size: 2rem; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+  .start-btn:hover { background: white; transform: scale(1.05); }
 
-  .no-cam {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 20;
-    background: rgba(0,0,0,0.8);
-  }
-
-  .start-btn {
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 20px 40px;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.8rem;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-
-  .side { background: var(--surface); border-left: 1px solid #222; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
-  .panel-label { font-size: 0.6rem; color: var(--dim); margin-bottom: 10px; letter-spacing: 2px; text-transform: uppercase; }
-  .hit-counter { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; color: var(--accent); line-height: 1; }
+  .side { background: var(--surface); border-left: 1px solid #2a2a2a; padding: 20px; display: flex; flex-direction: column; gap: 25px; }
+  .panel-label { font-size: 0.65rem; color: var(--dim); margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; font-weight: bold;}
+  .hit-counter { font-family: 'Bebas Neue', sans-serif; font-size: 6rem; color: var(--accent); line-height: 0.9; text-shadow: 0 0 20px rgba(0,255,136,0.3); }
   
-  select {
-    width: 100%;
-    background: #222;
-    color: var(--text);
-    border: 1px solid #444;
-    padding: 10px;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.75rem;
-  }
+  select { width: 100%; background: #222; color: var(--text); border: 1px solid #444; padding: 12px; font-family: 'Space Mono', monospace; font-size: 0.8rem; border-radius: 4px; outline: none;}
+  select:focus { border-color: var(--accent); }
 
-  .status-tag {
-    display: inline-block;
-    padding: 4px 8px;
-    font-size: 0.6rem;
-    background: #222;
-    border-radius: 3px;
-    color: #888;
-  }
-  .status-tag.active { color: var(--accent); border: 1px solid var(--accent); }
-  .status-tag.warning { color: var(--alert); border: 1px solid var(--alert); }
+  .status-block { border: 1px solid #333; padding: 15px; border-radius: 4px; background: rgba(0,0,0,0.2); }
+  .status-tag { display: inline-block; padding: 5px 10px; font-size: 0.65rem; background: #222; border-radius: 3px; color: #888; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+  .status-tag.active { color: var(--accent); border: 1px solid var(--accent); background: rgba(0,255,136,0.1); }
+  .status-tag.warning { color: var(--detecting); border: 1px solid var(--detecting); background: rgba(255,204,0,0.1); }
+  .status-tag.error { color: var(--searching); border: 1px solid var(--searching); background: rgba(255,61,0,0.1); }
 
-  footer { padding: 10px 20px; font-size: 0.6rem; color: #444; border-top: 1px solid #1a1a1a; display: flex; justify-content: space-between; }
+  .info-text { font-size: 0.65rem; color: #777; line-height: 1.8; margin-top: 10px; }
+  .info-text strong { color: #aaa; }
+
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  
+  footer { padding: 12px 20px; font-size: 0.65rem; color: #555; border-top: 1px solid #2a2a2a; display: flex; justify-content: space-between; background: var(--surface); }
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">DRUM<span>VISION</span> PRO</div>
-  <div class="status-tag" id="detectStatus">OFFLINE</div>
+  <div class="status-tag" id="detectStatus">SYSTEM OFFLINE</div>
 </header>
 
 <div class="main">
   <div class="camera-wrap" id="camWrap">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
-    <div id="targetAlert">TARGET LOCKED</div>
+    <div id="targetAlert">OCTAGON LOCKED</div>
     <div class="hit-flash" id="hitFlash"></div>
     <div class="no-cam" id="noCam">
-      <button class="start-btn" id="startBtn">ACTIVATE SYSTEM</button>
+      <h2 style="font-family:'Bebas Neue'; font-size:2.5rem; letter-spacing:2px;">PRECISION DETECTOR</h2>
+      <button class="start-btn" id="startBtn">INITIALIZE</button>
+      <p style="font-size:0.7rem; color:#888;">Place 八角形ドラムパッド in view. Requires snare.mp3.</p>
     </div>
   </div>
 
   <div class="side">
     <div class="panel-section">
-      <div class="panel-label">CAMERA DEVICE</div>
+      <div class="panel-label">CAMERA SOURCE</div>
       <select id="cameraSelect"></select>
+    </div>
+
+    <div class="status-block">
+      <div class="panel-label">SYSTEM STATUS</div>
+      <div id="audioInfo" class="info-text" style="color:var(--searching);">● AUDIO: NOT LOADED</div>
+      <div id="padInfo" class="info-text">● PAD: NOT RECOGNIZED</div>
+      <div id="shapeInfo" class="info-text" style="margin-top:5px; color:#444;">● SHAPE: --</div>
     </div>
 
     <div class="panel-section">
@@ -168,20 +103,21 @@
     
     <div class="ctrl-group">
       <div class="panel-label">HIT SENSITIVITY</div>
-      <input type="range" id="motionThresh" min="10" max="100" value="40">
-      <div style="font-size:0.7rem; color:var(--accent); text-align: right;" id="motionVal">40</div>
+      <input type="range" id="motionThresh" min="10" max="100" value="45">
+      <div style="font-size:0.75rem; color:var(--accent); text-align: right; font-weight:bold;" id="motionVal">45</div>
     </div>
 
-    <div style="margin-top:auto; font-size:0.55rem; color:#555; line-height:1.6; border-top:1px solid #222; padding-top:15px;">
-      <p>【システムの状態】</p>
-      <p id="audioInfo" style="color:#ff3d00;">● AUDIO: snare.mp3 NOT LOADED</p>
-      <p id="padInfo">● PAD: NOT RECOGNIZED</p>
+    <div style="margin-top:auto; background:#111; padding:15px; border-radius:4px; border:1px solid #222;">
+      <p class="panel-label" style="color:#aaa; margin-bottom:12px;">LOCK CONDITIONS</p>
+      <p class="info-text" style="margin:0;">1. <strong>COLOR:</strong> Gray/Dark (Adaptive)</p>
+      <p class="info-text" style="margin:0;">2. <strong>GEOMETRY:</strong> <span style="color:var(--detecting);">8 Vertices (Strict)</span></p>
+      <p class="info-text" style="margin:0;">3. <strong>STABILITY:</strong> 30 Frames</p>
     </div>
   </div>
 </div>
 
 <footer>
-  <span>PRECISION_CORE v3.0</span>
+  <span>OCTA-CORE ENGINE v4.0 (HIGH_STRICT)</span>
   <span id="fpsDisplay">-- FPS</span>
 </footer>
 
@@ -191,15 +127,17 @@ let offCanvas, offCtx;
 let snareBuffer = null, audioCtx = null;
 let currentStream = null;
 
+// パッド認識・形状解析用
 let padRect = null;
-let padDetectedFrames = 0; // 連続検出フレーム数
-let isPadLocked = false;   // 認識確定フラグ
+let currentVertices = 0;   // 現在の近似頂点数
+let padDetectedFrames = 0; 
+let isPadLocked = false;   
 
 let prevFrame = null;
 let motionHistory = [0, 0, 0];
 let hitCount = 0;
 let lastHitTime = 0;
-let motionThreshold = 40;
+let motionThreshold = 45;
 
 // --- Audio ---
 async function initAudio() {
@@ -210,15 +148,15 @@ async function initAudio() {
     if (!res.ok) throw new Error();
     const data = await res.arrayBuffer();
     snareBuffer = await audioCtx.decodeAudioData(data);
-    document.getElementById('audioInfo').textContent = "● AUDIO: snare.mp3 READY";
-    document.getElementById('audioInfo').style.color = "#00ff88";
+    document.getElementById('audioInfo').textContent = "● AUDIO: snare.mp3 LOADED";
+    document.getElementById('audioInfo').style.color = varColor('--accent');
   } catch(e) {
     document.getElementById('audioInfo').textContent = "● AUDIO: snare.mp3 ERROR";
+    document.getElementById('audioInfo').style.color = varColor('--searching');
   }
 }
 
 function playSnare() {
-  // パッドがロックされていない場合は絶対に鳴らさない
   if (!snareBuffer || !audioCtx || !isPadLocked) return;
   const source = audioCtx.createBufferSource();
   source.buffer = snareBuffer;
@@ -229,7 +167,7 @@ function playSnare() {
 // --- Camera ---
 async function changeCamera(deviceId) {
   if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-  const constraints = { video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: 640, height: 480 } };
+  const constraints = { video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: {ideal: 1280}, height: {ideal: 720} } };
   try {
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
     videoEl.srcObject = currentStream;
@@ -237,8 +175,7 @@ async function changeCamera(deviceId) {
     const select = document.getElementById('cameraSelect');
     select.innerHTML = '';
     devices.filter(d => d.kind === 'videoinput').forEach((d, i) => {
-      const opt = document.createElement('option');
-      opt.value = d.deviceId;
+      const opt = document.createElement('option'); opt.value = d.deviceId;
       opt.text = d.label || `Camera ${i + 1}`;
       if (d.deviceId === deviceId) opt.selected = true;
       select.appendChild(opt);
@@ -249,86 +186,206 @@ async function changeCamera(deviceId) {
       ctx = overlayCanvas.getContext('2d');
       requestAnimationFrame(loop);
     };
-  } catch (e) { alert("Camera Error"); }
+  } catch (e) { alert("Camera Access Error"); }
 }
 
-// --- Logic ---
-function findPad(imageData) {
+// --- Vision Algorithm: STRICT OCTAGON DETECTION ---
+function findStrictOctagon(imageData) {
   const { data, width, height } = imageData;
-  let minX = width, minY = height, maxX = 0, maxY = 0, count = 0;
+  
+  // 1. カラーフィルタリング (グレー/ダーク) -> 2値化
+  const binaryMask = new Uint8Array(width * height);
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i+1], b = data[i+2];
+    const brightness = (r + g + b) / 3;
+    const sat = Math.max(r, g, b) - Math.min(r, g, b);
+    
+    // パッドの色判定条件 (写真はやや暗め)
+    if (brightness > 20 && brightness < 110 && sat < 20) {
+      binaryMask[i/4] = 1; // ドラムパッド候補ピクセル
+    } else {
+      binaryMask[i/4] = 0;
+    }
+  }
 
-  // 精度調整：グレースケールのパッド検出条件を緩和しつつ密度をチェック
-  for (let y = 0; y < height; y += 4) {
-    for (let x = 0; x < width; x += 4) {
-      const i = (y * width + x) * 4;
-      const r = data[i], g = data[i+1], b = data[i+2];
-      const brightness = (r + g + b) / 3;
-      const sat = Math.max(r, g, b) - Math.min(r, g, b);
-      
-      // パッドのグレー範囲を少し広めに設定（照明変化に対応）
-      if (brightness > 25 && brightness < 140 && sat < 25) {
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-        count++;
+  // 2. 最大の塊（Blob）の抽出 & 簡易輪郭解析
+  // (軽量化のため、簡易的なバウンディングボックスと輪郭点抽出を行う)
+  let contours = [];
+  const visited = new Uint8Array(width * height);
+  let maxArea = 0, bestContour = null;
+
+  for (let y = 10; y < height - 10; y += 5) { // ラスタ走査のステップを粗くして高速化
+    for (let x = 10; x < width - 10; x += 5) {
+      const idx = y * width + x;
+      if (binaryMask[idx] === 1 && visited[idx] === 0) {
+        // 簡易Blob Trace (面積計算)
+        let area = 0, minX = width, minY = height, maxX = 0, maxY = 0;
+        let points = [];
+        
+        // 簡易的な塗りつぶしでBlob特定
+        let queue = [[x, y]];
+        visited[idx] = 1;
+
+        while(queue.length > 0) {
+          let [cx, cy] = queue.pop();
+          area++;
+          if(cx < minX) minX = cx; if(cx > maxX) maxX = cx;
+          if(cy < minY) minY = cy; if(cy > maxY) maxY = cy;
+          
+          // 境界点を輪郭点候補として保持 (ダウンサンプリング)
+          if(cx % 3 === 0 && cy % 3 === 0) points.push({x:cx, y:cy});
+
+          const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+          for(let [dx, dy] of dirs) {
+            let nx = cx + dx*5, ny = cy + dy*5; // 粗いステップ
+            if(nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              const nidx = ny * width + nx;
+              if(binaryMask[nidx] === 1 && visited[nidx] === 0) {
+                visited[nidx] = 1;
+                queue.push([nx, ny]);
+              }
+            }
+          }
+          if(queue.length > 500) break; // Blobが大きすぎたら停止
+        }
+
+        if (area > maxArea) {
+          maxArea = area;
+          bestContour = { points: points, rect: { x: minX, y: minY, w: maxX - minX, h: maxY - minY }, area: area };
+        }
       }
     }
   }
 
-  // 面積が小さすぎる場合は無視（ノイズ対策）
-  if (count > 200 && (maxX - minX) > width * 0.1) {
-    const target = { x: minX/width, y: minY/height, w: (maxX-minX)/width, h: (maxY-minY)/height };
+  // 判定に必要な情報が得られなかった
+  if (!bestContour || bestContour.area < (width * height * 0.01)) { // 画面の1%未満は無視
+    currentVertices = 0;
+    return null;
+  }
+
+  // 3. 幾何学判定: 多角形近似 (RDPアルゴリズムの簡易版)
+  const vertices = approximatePolygon(bestContour.points, width * 0.04); // しきい値
+  currentVertices = vertices.length;
+
+  // アスペクト比チェック (極端に潰れていないか)
+  const ratio = bestContour.rect.w / bestContour.rect.h;
+  const isCorrectRatio = ratio > 0.6 && ratio < 1.6;
+
+  // 【厳密な条件】
+  // 面積が十分で、アスペクト比が正しく、かつ近似頂点数が「ちょうど8個」
+  if (isCorrectRatio && currentVertices === 8) {
+    const target = { 
+      x: bestContour.rect.x / width, y: bestContour.rect.y / height, 
+      w: bestContour.rect.w / width, h: bestContour.rect.h / height 
+    };
+    
+    // スムージング
     if (!padRect) padRect = target;
     else {
-      const lerp = 0.2;
+      const lerp = 0.25;
       padRect.x += (target.x - padRect.x) * lerp; padRect.y += (target.y - padRect.y) * lerp;
       padRect.w += (target.w - padRect.w) * lerp; padRect.h += (target.h - padRect.h) * lerp;
     }
-    return true;
+    return true; // 八角形として認定
   }
-  return false;
+
+  return false; // 八角形ではない
 }
 
+// 簡易多角形近似関数
+function approximatePolygon(points, tolerance) {
+  if (points.length < 3) return points;
+  let simplified = [points[0]];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = simplified[simplified.length - 1];
+    const curr = points[i];
+    const next = points[i+1];
+
+    // ベクトルの角度変化で角を判定
+    const vec1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+    const vec2 = { x: next.x - curr.x, y: next.y - curr.y };
+    
+    const mag1 = Math.sqrt(vec1.x*vec1.x + vec1.y*vec1.y);
+    const mag2 = Math.sqrt(vec2.x*vec2.x + vec2.y*vec2.y);
+    
+    if (mag1 < 10 || mag2 < 10) continue; // 短い辺は無視
+
+    // 内積から角度を算出
+    const dot = vec1.x * vec2.x + vec1.y * vec2.y;
+    const cosTheta = dot / (mag1 * mag2);
+    
+    // 角度変化が大きい（約30度以上）点を頂点とする
+    if (cosTheta < 0.86) { 
+      simplified.push(curr);
+    }
+  }
+  simplified.push(points[points.length - 1]);
+
+  // 最後に近すぎる頂点を統合
+  if (simplified.length < 3) return simplified;
+  let finalVertices = [simplified[0]];
+  for (let i = 1; i < simplified.length; i++) {
+    const d = dist(finalVertices[finalVertices.length-1], simplified[i]);
+    if (d > tolerance) {
+      finalVertices.push(simplified[i]);
+    }
+  }
+  return finalVertices;
+}
+
+function dist(p1, p2) { return Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.x)**2); }
+
+// --- Main Loop ---
 function loop(ts) {
   if (videoEl.readyState >= 2) {
     if (!offCanvas) {
-      offCanvas = document.createElement('canvas');
-      offCanvas.width = 160; offCanvas.height = 120;
+      // 処理負荷軽減のため解析解像度を落とす
+      offCanvas = document.createElement('canvas'); offCanvas.width = 320; offCanvas.height = 240;
       offCtx = offCanvas.getContext('2d');
     }
     offCtx.drawImage(videoEl, 0, 0, offCanvas.width, offCanvas.height);
     const frame = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
-    const found = findPad(frame);
+    // 1. 厳密な八角形検出
+    const isOctagonValid = findStrictOctagon(frame);
     
-    // ロック判定ロジック
-    if (found) {
+    // ロック判定（条件強化）
+    if (isOctagonValid) {
       padDetectedFrames++;
-      if (padDetectedFrames > 15 && !isPadLocked) {
-        // ロックオン成功
+      // 【条件シビア化】30フレーム（約1秒）連続で八角形形状が安定していること
+      if (padDetectedFrames > 30 && !isPadLocked) {
         isPadLocked = true;
         showAlert();
       }
     } else {
       padDetectedFrames = 0;
       isPadLocked = false;
-      padRect = null;
+      if(currentVertices === 0) padRect = null; // まったく見つからない時だけ枠を消す
     }
 
-    // UI更新
+    // --- UI 更新 ---
     const status = document.getElementById('detectStatus');
     const padInfo = document.getElementById('padInfo');
+    const shapeInfo = document.getElementById('shapeInfo');
+
+    shapeInfo.textContent = `● SHAPE: ${currentVertices > 0 ? currentVertices + ' vertices' : '--'}`;
+    
     if (isPadLocked) {
-      status.textContent = "LOCKED"; status.className = "status-tag active";
-      padInfo.textContent = "● PAD: LOCKED"; padInfo.style.color = "#00ff88";
-    } else if (found) {
-      status.textContent = "SCANNING..."; status.className = "status-tag warning";
-      padInfo.textContent = "● PAD: DETECTING..."; padInfo.style.color = "#ffcc00";
+      status.textContent = "OCTAGON LOCKED"; status.className = "status-tag active";
+      padInfo.textContent = "● PAD: OCTAGON LOCKED"; padInfo.style.color = varColor('--accent');
+      shapeInfo.style.color = varColor('--accent');
+    } else if (isOctagonValid) {
+      status.textContent = `STABILIZING (${Math.round(padDetectedFrames/30*100)}%)`; status.className = "status-tag warning";
+      padInfo.textContent = "● PAD: GEOMETRY VALID"; padInfo.style.color = varColor('--detecting');
+      shapeInfo.style.color = varColor('--detecting');
     } else {
-      status.textContent = "SEARCHING"; status.className = "status-tag";
-      padInfo.textContent = "● PAD: NOT FOUND"; padInfo.style.color = "#555";
+      status.textContent = currentVertices > 0 ? "INVALID SHAPE" : "SEARCHING..."; status.className = "status-tag error";
+      padInfo.textContent = currentVertices > 0 ? "● PAD: NOT OCTAGON" : "● PAD: NOT FOUND"; padInfo.style.color = varColor('--searching');
+      shapeInfo.style.color = currentVertices > 0 ? varColor('--searching') : "#444";
     }
 
-    // ヒット判定（ロックされている時のみ）
+    // --- ヒット判定 (ロック時のみ) ---
     if (prevFrame && isPadLocked) {
       const motion = analyzeMotion(frame, prevFrame);
       motionHistory.push(motion); motionHistory.shift();
@@ -336,7 +393,7 @@ function loop(ts) {
         if (ts - lastHitTime > 110) {
           hitCount++;
           document.getElementById('hitCount').textContent = hitCount;
-          playSnare(); // ここで音が出る
+          playSnare();
           const flash = document.getElementById('hitFlash');
           flash.classList.add('show'); setTimeout(() => flash.classList.remove('show'), 40);
           lastHitTime = ts;
@@ -363,29 +420,29 @@ function analyzeMotion(curr, prev) {
       pixels++;
     }
   }
-  return pixels > 0 ? (diffSum / pixels) * 10 : 0;
+  return pixels > 0 ? (diffSum / pixels) * 12 : 0; // 感度少し調整
 }
 
 function drawOverlay() {
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
   if (padRect) {
-    ctx.strokeStyle = isPadLocked ? '#00ff88' : '#ffcc00'; 
-    ctx.lineWidth = isPadLocked ? 4 : 2; 
-    ctx.setLineDash(isPadLocked ? [] : [8, 4]);
+    // 判定枠の色を変更
+    ctx.strokeStyle = isPadLocked ? varColor('--accent') : (currentVertices === 8 ? varColor('--detecting') : varColor('--searching'));
+    ctx.lineWidth = isPadLocked ? 5 : 2; 
+    ctx.setLineDash(isPadLocked ? [] : [10, 5]);
     ctx.strokeRect(padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height, padRect.w * overlayCanvas.width, padRect.h * overlayCanvas.height);
-    if (isPadLocked) {
-      ctx.fillStyle = '#00ff88'; ctx.font = 'bold 12px Space Mono';
-      ctx.fillText("PAD READY", padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height - 10);
-    }
+    
+    // テキスト情報
+    ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 13px Space Mono';
+    ctx.fillText(isPadLocked ? "LOCKED: 8-GON" : `SHAPE: ${currentVertices}-GON`, padRect.x * overlayCanvas.width, padRect.y * overlayCanvas.height - 10);
   }
 }
 
-function showAlert() {
-  const alertEl = document.getElementById('targetAlert');
-  alertEl.style.display = 'block';
-  setTimeout(() => { alertEl.style.display = 'none'; }, 1500);
-}
+// Utility
+function showAlert() { const a = document.getElementById('targetAlert'); a.style.display = 'block'; setTimeout(()=>a.style.display='none', 1800); }
+function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
+// --- Initialization ---
 window.onload = () => {
   videoEl = document.getElementById('video');
   overlayCanvas = document.getElementById('overlay');
@@ -399,7 +456,8 @@ window.onload = () => {
     motionThreshold = parseInt(e.target.value);
     document.getElementById('motionVal').textContent = motionThreshold;
   };
+  window.onresize = () => { if(videoEl.readyState >= 2) { overlayCanvas.width = videoEl.clientWidth; overlayCanvas.height = videoEl.clientHeight; ctx = overlayCanvas.getContext('2d'); } };
 };
 </script>
 </body>
-</html>　
+</html>
